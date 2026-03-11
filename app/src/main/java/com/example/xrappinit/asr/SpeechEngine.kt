@@ -1,0 +1,257 @@
+package com.example.xrappinit.asr
+
+import android.content.Context
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.os.Handler
+import android.os.Looper
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+
+/**
+ * 基于阿里云 DashScope paraformer-realtime-v2 的实时流式语音识别引擎。
+ *
+ * 协议流程：
+ *  1. WebSocket 连接（Authorization: Bearer <API_KEY>）
+ *  2. 发送 run-task JSON
+ *  3. 收到 task-started → 开始 AudioRecord 录音并推流
+ *  4. 持续收到 result-generated（sentence_end=false 为实时中间结果）
+ *  5. 调用 stop() → 发送 finish-task → 断开连接
+ *
+ * 回调均在主线程触发。
+ */
+class SpeechEngine(
+    @Suppress("UNUSED_PARAMETER") context: Context,
+    private val onPartial: (String) -> Unit,
+    private val onFinal: (String) -> Unit,
+    private val onError: (String) -> Unit
+) {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val client = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)   // WebSocket 长连接，不设读超时
+        .pingInterval(20, TimeUnit.SECONDS)       // 保活 ping
+        .build()
+
+    private var webSocket: WebSocket? = null
+    private var audioRecord: AudioRecord? = null
+    private var recordingThread: Thread? = null
+
+    @Volatile private var isRunning = false
+    @Volatile private var taskStarted = false
+    private var taskId = ""
+    private var languageHints: List<String> = listOf("en")
+
+    // ── 公开 API ──────────────────────────────────────────────────────────────
+
+    /**
+     * 开始识别。
+     * @param langHints DashScope language_hints，例如 ["en"]、["zh"]、["ja"]
+     */
+    fun start(langHints: List<String>) {
+        if (isRunning) return
+        isRunning = true
+        languageHints = langHints
+        taskId = UUID.randomUUID().toString()
+        taskStarted = false
+        connectWebSocket()
+    }
+
+    /**
+     * 停止识别并释放 AudioRecord（WebSocket 也会关闭）。
+     */
+    fun stop() {
+        if (!isRunning) return
+        isRunning = false
+        taskStarted = false
+        stopRecording()
+        sendFinishTask()
+        webSocket?.close(1000, "stopped")
+        webSocket = null
+    }
+
+    /**
+     * 完全释放资源（stop + 关闭 OkHttpClient 线程池）。
+     */
+    fun release() {
+        stop()
+        client.dispatcher.executorService.shutdown()
+    }
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+
+    private fun connectWebSocket() {
+        val apiKey = AsrConfig.DASHSCOPE_API_KEY
+        if (apiKey.isBlank()) {
+            mainHandler.post { onError("DashScope API Key 未填写，请在 AsrConfig.kt 中配置") }
+            isRunning = false
+            return
+        }
+
+        val request = Request.Builder()
+            .url(AsrConfig.WS_ENDPOINT)
+            .header("Authorization", "Bearer $apiKey")
+            .build()
+
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(ws: WebSocket, response: Response) {
+                ws.send(buildRunTaskJson())
+            }
+
+            override fun onMessage(ws: WebSocket, text: String) {
+                handleServerMessage(text)
+            }
+
+            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                if (isRunning) {
+                    isRunning = false
+                    stopRecording()
+                    mainHandler.post { onError("ASR 连接失败: ${t.message}") }
+                }
+            }
+
+            override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                ws.close(code, reason)
+            }
+        })
+    }
+
+    private fun handleServerMessage(text: String) {
+        try {
+            val json = JSONObject(text)
+            val header = json.optJSONObject("header") ?: return
+            when (header.optString("event")) {
+                "task-started" -> {
+                    taskStarted = true
+                    startRecording()
+                }
+                "result-generated" -> {
+                    val sentence = json
+                        .optJSONObject("payload")
+                        ?.optJSONObject("output")
+                        ?.optJSONObject("sentence") ?: return
+                    val transcript = sentence.optString("text").trim()
+                    if (transcript.isBlank()) return
+                    val isFinal = sentence.optBoolean("sentence_end", false)
+                    mainHandler.post {
+                        if (isFinal) onFinal(transcript)
+                        else onPartial(transcript)
+                    }
+                }
+                "task-failed" -> {
+                    val errMsg = header.optString("error_message", "识别任务失败")
+                    isRunning = false
+                    stopRecording()
+                    mainHandler.post { onError(errMsg) }
+                }
+                "task-finished" -> { /* 正常结束，无需处理 */ }
+            }
+        } catch (_: Exception) {
+            // 忽略解析错误
+        }
+    }
+
+    // ── 音频录制 ──────────────────────────────────────────────────────────────
+
+    private fun startRecording() {
+        val minBuf = AudioRecord.getMinBufferSize(
+            AsrConfig.SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+        val bufSize = maxOf(minBuf, AsrConfig.FRAME_BYTES * 4)
+
+        @Suppress("MissingPermission")
+        audioRecord = AudioRecord(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            AsrConfig.SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            bufSize
+        )
+
+        if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+            mainHandler.post { onError("麦克风初始化失败") }
+            isRunning = false
+            return
+        }
+
+        audioRecord!!.startRecording()
+
+        recordingThread = Thread {
+            val frame = ByteArray(AsrConfig.FRAME_BYTES)
+            while (isRunning && !Thread.currentThread().isInterrupted) {
+                val read = audioRecord?.read(frame, 0, frame.size) ?: break
+                if (read > 0 && taskStarted) {
+                    val bytes = if (read < frame.size) frame.copyOf(read) else frame
+                    webSocket?.send(bytes.toByteString())
+                }
+            }
+        }.also {
+            it.isDaemon = true
+            it.start()
+        }
+    }
+
+    private fun stopRecording() {
+        recordingThread?.interrupt()
+        recordingThread = null
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+        } catch (_: Exception) {}
+        audioRecord = null
+    }
+
+    private fun sendFinishTask() {
+        try {
+            webSocket?.send(buildFinishTaskJson())
+        } catch (_: Exception) {}
+    }
+
+    // ── JSON 构建 ─────────────────────────────────────────────────────────────
+
+    private fun buildRunTaskJson(): String = JSONObject().apply {
+        put("header", JSONObject().apply {
+            put("action", "run-task")
+            put("task_id", taskId)
+            put("streaming", "duplex")
+        })
+        put("payload", JSONObject().apply {
+            put("task_group", "audio")
+            put("task", "asr")
+            put("function", "recognition")
+            put("model", AsrConfig.MODEL)
+            put("parameters", JSONObject().apply {
+                put("format", "pcm")
+                put("sample_rate", AsrConfig.SAMPLE_RATE)
+                put("language_hints", JSONArray(languageHints))
+                put("punctuation_prediction_enabled", true)
+                put("disfluency_removal_enabled", true)
+                put("inverse_text_normalization_enabled", true)
+            })
+            put("input", JSONObject())
+        })
+    }.toString()
+
+    private fun buildFinishTaskJson(): String = JSONObject().apply {
+        put("header", JSONObject().apply {
+            put("action", "finish-task")
+            put("task_id", taskId)
+            put("streaming", "duplex")
+        })
+        put("payload", JSONObject().apply {
+            put("input", JSONObject())
+        })
+    }.toString()
+}

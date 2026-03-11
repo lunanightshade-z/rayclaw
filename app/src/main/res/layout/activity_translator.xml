@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingHorizontal="30dp"
+    android:paddingVertical="20dp">
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guidelineV"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.62" />
+
+    <TextView
+        android:id="@+id/tvLanguage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#1A4FC3F7"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="3dp"
+        android:text="语音: 中文"
+        android:textColor="#4FC3F7"
+        android:textSize="13sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tvProvider"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#10FFFFFF"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="3dp"
+        android:text="OpenClaw"
+        android:textColor="#60AAAAAA"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:text="单击镜腿开始监听"
+        android:textColor="#60FFFFFF"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toStartOf="@id/tvProvider"
+        app:layout_constraintStart_toEndOf="@id/tvLanguage"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:id="@+id/dividerTop"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:background="#20FFFFFF"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvStatus" />
+
+    <TextView
+        android:id="@+id/tvOriginal"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_glass_panel"
+        android:ellipsize="end"
+        android:lineSpacingMultiplier="1.3"
+        android:maxLines="3"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:textColor="#98A9B8"
+        android:textSize="15sp"
+        app:layout_constraintBottom_toTopOf="@id/wvResponse"
+        app:layout_constraintEnd_toStartOf="@id/guidelineV"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/dividerTop" />
+
+    <WebView
+        android:id="@+id/wvResponse"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="18dp"
+        android:background="@android:color/transparent"
+        android:overScrollMode="never"
+        app:layout_constraintBottom_toTopOf="@id/tvHint"
+        app:layout_constraintEnd_toStartOf="@id/guidelineV"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvOriginal" />
+
+    <View
+        android:id="@+id/dividerV"
+        android:layout_width="1dp"
+        android:layout_height="0dp"
+        android:background="#20FFFFFF"
+        app:layout_constraintBottom_toTopOf="@id/tvHint"
+        app:layout_constraintStart_toEndOf="@id/guidelineV"
+        app:layout_constraintTop_toBottomOf="@id/dividerTop" />
+
+    <TextView
+        android:id="@+id/tvHistoryLabel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="6dp"
+        android:text="对话历史"
+        android:textColor="#30FFFFFF"
+        android:textSize="11sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/dividerV"
+        app:layout_constraintTop_toBottomOf="@id/dividerTop" />
+
+    <TextView
+        android:id="@+id/tvHistory"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="6dp"
+        android:gravity="top|start"
+        android:lineSpacingMultiplier="1.5"
+        android:textColor="#55FFFFFF"
+        android:textSize="13sp"
+        app:layout_constraintBottom_toTopOf="@id/tvHint"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/dividerV"
+        app:layout_constraintTop_toBottomOf="@id/tvHistoryLabel" />
+
+    <TextView
+        android:id="@+id/tvHint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="单击: 开始/暂停  前后滑: 切换语言  长按: 清空  双击: 退出"
+        android:textColor="#25FFFFFF"
+        android:textSize="11sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

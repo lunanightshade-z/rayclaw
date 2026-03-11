@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Legacy Material colors (kept for theme compatibility) -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Agent Chat UI palette -->
+    <color name="colorBgRoot">#FF080A14</color>
+    <color name="colorBgSidebar">#FF0B0D1C</color>
+    <color name="colorDivider">#FF151D35</color>
+    <color name="colorAccentBlue">#FF3B9EFF</color>
+    <color name="colorAccentBlueDim">#1A3B9EFF</color>
+    <color name="colorTextPrimary">#FFC8D8F0</color>
+    <color name="colorTextMuted">#FF1E2D4A</color>
+    <color name="colorTextSubtle">#FF0F1828</color>
+    <color name="colorUserBubble">#FF0D1830</color>
+    <color name="colorStatusListening">#FF00D48A</color>
+    <color name="colorStatusThinking">#FFFFB020</color>
+    <color name="colorStatusError">#FFFF6B6B</color>
+</resources>
