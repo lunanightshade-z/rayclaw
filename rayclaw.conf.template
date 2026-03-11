@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  rayclaw.conf — Runtime configuration overlay for rayclaw AR app
+#
+#  HOW TO USE
+#  ──────────
+#  1. Copy this file and remove the ".template" suffix:
+#       cp rayclaw.conf.template rayclaw.conf
+#
+#  2. Fill in your own keys below (remove the placeholder values).
+#
+#  3. Push to the glasses once (no rebuild needed):
+#       adb push rayclaw.conf /sdcard/Android/data/com.example.xrappinit/files/rayclaw.conf
+#
+#  4. (Re-)launch the app — runtime values take effect immediately.
+#
+#  To update a key: edit this file → adb push again → relaunch.
+#  To remove a key and fall back to the compiled-in BuildConfig value:
+#    delete the line from the file → adb push again → relaunch.
+#
+#  SECURITY
+#  ──────────
+#  • This file contains secrets — never commit it to version control.
+#    (.gitignore already excludes rayclaw.conf)
+#  • The file lives in the app's own external-files directory, so no
+#    READ_EXTERNAL_STORAGE permission is required (Android 4.4+).
+#  • Keys are logged to logcat at DEBUG level on startup; values are NOT.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Alibaba DashScope ASR ─────────────────────────────────────────────────────
+# Get your key at: https://dashscope.console.aliyun.com/ → API-KEY 管理
+DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ── OpenClaw Agent Gateway ────────────────────────────────────────────────────
+# Base URL of your OpenClaw server (include port, no trailing slash)
+OPENCLAW_BASE_URL=http://192.168.x.x:18789
+
+# Gateway authentication token
+OPENCLAW_GATEWAY_TOKEN=your-gateway-token-here
+
+# Agent ID to route requests to (default: main)
+OPENCLAW_AGENT_ID=main

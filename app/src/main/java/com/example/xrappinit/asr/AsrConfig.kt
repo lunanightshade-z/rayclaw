@@ -1,25 +1,27 @@
 package com.example.xrappinit.asr
 
 import com.example.xrappinit.BuildConfig
+import com.example.xrappinit.RuntimeConfig
 
 /**
  * ════════════════════════════════════════════════
  *  语音识别（ASR）配置
  *
- *  API Key 存放在项目根目录的 local.properties（已被 .gitignore 排除）：
+ *  优先级（高→低）：
+ *   1. rayclaw.conf（运行时，开发者通过 adb push 配置，无需重新编译）
+ *   2. local.properties → BuildConfig（编译时注入，baked into APK）
  *
+ *  rayclaw.conf 示例：
  *      DASHSCOPE_API_KEY=sk-xxxxxxxxxxxx
- *
- *  构建时由 build.gradle.kts 读取并注入 BuildConfig，
- *  源代码中不出现任何明文密钥。
  *
  *  申请地址：https://dashscope.console.aliyun.com/ → API-KEY 管理
  * ════════════════════════════════════════════════
  */
 object AsrConfig {
 
-    // 从 BuildConfig 读取，Key 来源于 local.properties
-    val DASHSCOPE_API_KEY: String get() = BuildConfig.DASHSCOPE_API_KEY
+    // 运行时配置优先，fallback 到编译时 BuildConfig
+    val DASHSCOPE_API_KEY: String
+        get() = RuntimeConfig.get("DASHSCOPE_API_KEY", BuildConfig.DASHSCOPE_API_KEY)
 
     // ASR 模型（支持中英日韩法德西俄等多语言实时识别）
     const val MODEL = "paraformer-realtime-v2"

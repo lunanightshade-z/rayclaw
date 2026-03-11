@@ -1,15 +1,21 @@
+/*
+ * Obsidian + Jade — AR Glasses Theme
+ * Near-black bg → waveguide near-transparent → maximum real-world contrast
+ * Warm ivory text → easier on eyes than pure white through waveguide optics
+ * Jade accent → vibrant, non-blue, clearly distinct on AR display
+ */
 :root {
-  --bg:           rgba(8, 10, 20, 0.92);
-  --bg-soft:      rgba(11, 16, 32, 0.82);
-  --surface:      rgba(8, 14, 28, 0.96);
-  --line:         rgba(59, 158, 255, 0.18);
-  --line-strong:  rgba(59, 158, 255, 0.34);
-  --text:         #c8d8f0;
-  --muted:        #7a94b8;
-  --accent:       #3b9eff;
-  --accent-soft:  rgba(59, 158, 255, 0.13);
-  --code-bg:      #060e1e;
-  --quote-color:  #a8d4f8;
+  --bg:           rgba(4, 4, 3, 0.93);
+  --bg-soft:      rgba(8, 8, 6, 0.86);
+  --surface:      rgba(2, 2, 2, 0.97);
+  --line:         rgba(0, 200, 150, 0.16);
+  --line-strong:  rgba(0, 200, 150, 0.30);
+  --text:         #eee8dc;
+  --muted:        #888070;
+  --accent:       #00c896;
+  --accent-soft:  rgba(0, 200, 150, 0.12);
+  --code-bg:      #020202;
+  --quote-color:  #80e8c8;
 }
 
 html,
@@ -18,9 +24,10 @@ body {
   padding: 0;
   background: transparent;
   color: var(--text);
+  /* Larger base font for AR readability */
   font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
-  font-size: 15px;
-  line-height: 1.72;
+  font-size: 17px;
+  line-height: 1.78;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -36,51 +43,51 @@ body {
   border: 1px solid var(--line);
   border-radius: 16px;
   background:
-    linear-gradient(155deg, rgba(11, 20, 46, 0.93) 0%, rgba(8, 10, 20, 0.89) 100%),
-    radial-gradient(ellipse at top right, rgba(59, 158, 255, 0.09), transparent 52%);
+    linear-gradient(150deg, rgba(10, 12, 8, 0.95) 0%, rgba(4, 4, 3, 0.92) 100%),
+    radial-gradient(ellipse at top right, rgba(0, 200, 150, 0.06), transparent 55%);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 16px 48px rgba(0, 0, 0, 0.34),
-    0 0 0 1px rgba(0, 0, 0, 0.28);
+    0 1px 0 rgba(255, 255, 255, 0.025) inset,
+    0 16px 48px rgba(0, 0, 0, 0.44),
+    0 0 0 1px rgba(0, 0, 0, 0.36);
 }
 
 .placeholder {
   color: var(--muted);
-  opacity: 0.48;
+  opacity: 0.42;
 }
 
 /* ── Headings ── */
 
 h1, h2, h3, h4, h5, h6 {
   margin: 1.2em 0 0.5em;
-  color: #e8f0ff;
-  line-height: 1.32;
+  color: #f5f0e8;
+  line-height: 1.3;
   font-weight: 600;
 }
 
-h1 { font-size: 1.38em; }
-h2 { font-size: 1.22em; }
-h3 { font-size: 1.08em; color: #d0dff8; }
+h1 { font-size: 1.36em; }
+h2 { font-size: 1.20em; }
+h3 { font-size: 1.06em; color: #d8d0c4; }
 h4, h5, h6 { font-size: 1em; color: var(--muted); }
 
 h1,
 h2 {
-  padding-bottom: 0.28em;
+  padding-bottom: 0.26em;
   border-bottom: 1px solid var(--line);
 }
 
 /* ── Block elements ── */
 
 p, ul, ol, blockquote, pre, table {
-  margin: 0 0 0.88em;
+  margin: 0 0 0.9em;
 }
 
 ul, ol {
-  padding-left: 1.4em;
+  padding-left: 1.45em;
 }
 
 li + li {
-  margin-top: 0.26em;
+  margin-top: 0.28em;
 }
 
 /* ── Inline ── */
@@ -88,11 +95,11 @@ li + li {
 a {
   color: var(--accent);
   text-decoration: none;
-  border-bottom: 1px solid rgba(59, 158, 255, 0.28);
+  border-bottom: 1px solid rgba(0, 200, 150, 0.28);
 }
 
 strong {
-  color: #e8f0ff;
+  color: #f5f0e8;
   font-weight: 600;
 }
 
@@ -104,38 +111,38 @@ em {
 /* ── Code ── */
 
 code {
-  padding: 0.14em 0.38em;
+  padding: 0.15em 0.40em;
   border-radius: 5px;
   background: var(--accent-soft);
   color: var(--quote-color);
   font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", "Consolas", monospace;
-  font-size: 0.89em;
+  font-size: 0.88em;
 }
 
 pre {
   overflow-x: auto;
-  padding: 0.95em 1.1em;
+  padding: 1em 1.15em;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--code-bg);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.40);
 }
 
 pre code {
   padding: 0;
   background: transparent;
-  color: #b8dcff;
-  font-size: 0.88em;
+  color: #b8d8c8;
+  font-size: 0.87em;
 }
 
 /* ── Blockquote ── */
 
 blockquote {
   margin-left: 0;
-  padding: 0.78em 1.1em;
+  padding: 0.80em 1.15em;
   border-left: 3px solid var(--accent);
   border-radius: 0 10px 10px 0;
-  background: rgba(59, 158, 255, 0.07);
+  background: rgba(0, 200, 150, 0.06);
   color: var(--quote-color);
 }
 
@@ -161,17 +168,17 @@ table {
 }
 
 thead {
-  background: rgba(59, 158, 255, 0.09);
+  background: rgba(0, 200, 150, 0.08);
 }
 
 tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.022);
+  background: rgba(255, 255, 255, 0.018);
 }
 
 th,
 td {
   min-width: 88px;
-  padding: 0.7em 0.9em;
+  padding: 0.72em 0.95em;
   border: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
@@ -180,7 +187,7 @@ td {
 }
 
 th {
-  color: #e8f0ff;
+  color: #f5f0e8;
   font-weight: 600;
   border-color: var(--line-strong);
 }

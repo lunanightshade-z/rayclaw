@@ -35,10 +35,16 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
     private var isListening = false
     private var isProcessing = false
 
+    /**
+     * Generation counter — bumped on every [resetConversation].
+     * All streaming callbacks capture their generation at launch and silently
+     * discard themselves if [generation] has moved on, preventing stale updates.
+     */
+    private var generation = 0
+
     private val languages = AppLanguage.entries
     private var langIndex = 0
 
-    // Current conversation session state
     private var sessionTurnCount = 0
 
     private var latestResponseMarkdown = ""
@@ -46,6 +52,8 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
     private val responseRenderRunnable = Runnable {
         renderResponseMarkdownNow(scrollToBottom = responseScrollToBottom)
     }
+
+    // ─────────────────────── Lifecycle ───────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,9 +64,7 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
             initSpeechEngine()
         } else {
             ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                REQ_MIC
+                this, arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC
             )
         }
         collectTempleActions()
@@ -75,28 +81,20 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
 
     private fun initOpenClawClient() {
         openClawClient = OpenClawClient(
-            baseUrl = AgentConfig.BASE_URL,
-            agentId = AgentConfig.AGENT_ID,
-            token = AgentConfig.GATEWAY_TOKEN,
-            user = AgentConfig.USER_ID,
+            baseUrl       = AgentConfig.BASE_URL,
+            agentId       = AgentConfig.AGENT_ID,
+            token         = AgentConfig.GATEWAY_TOKEN,
+            user          = AgentConfig.USER_ID,
             timeoutSeconds = AgentConfig.TIMEOUT_SECONDS
         )
     }
 
     private fun initSpeechEngine() {
         speechEngine = SpeechEngine(
-            context = this,
-            onPartial = { text ->
-                setSpeechInput("$text…", isPartial = true)
-            },
-            onFinal = { text ->
-                setSpeechInput(text, isPartial = false)
-                askAgent(text)
-            },
-            onError = { msg ->
-                setStatus("ASR 错误: $msg", COLOR_ERROR)
-                isListening = false
-            }
+            context   = this,
+            onPartial = { text -> setSpeechInput("$text…", isPartial = true) },
+            onFinal   = { text -> setSpeechInput(text, isPartial = false); askAgent(text) },
+            onError   = { msg  -> setStatus("ASR 错误: $msg", COLOR_ERROR); isListening = false }
         )
     }
 
@@ -110,6 +108,8 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
             tvProvider.text = "OpenClaw"
             tvUserInput.text = ""
             tvUserInput.setTextColor(COLOR_INPUT_EMPTY)
+            tvSessions.text = ""
+            tvSessions.setTextColor(COLOR_SESSION_IDLE)
         }
         setResponseMarkdown("", immediate = true, scrollToBottom = false)
     }
@@ -128,7 +128,7 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
                 when {
                     text.isBlank() -> COLOR_INPUT_EMPTY
                     isPartial      -> COLOR_INPUT_PARTIAL
-                    else           -> COLOR_INPUT_FINAL
+                    else           -> COLOR_INPUT_FINAL   // bright ivory — most visible state
                 }
             )
         }
@@ -142,11 +142,8 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
         latestResponseMarkdown = markdown
         responseScrollToBottom = scrollToBottom
         mainHandler.removeCallbacks(responseRenderRunnable)
-        if (immediate) {
-            mainHandler.post(responseRenderRunnable)
-        } else {
-            mainHandler.postDelayed(responseRenderRunnable, STREAM_RENDER_THROTTLE_MS)
-        }
+        if (immediate) mainHandler.post(responseRenderRunnable)
+        else mainHandler.postDelayed(responseRenderRunnable, STREAM_RENDER_THROTTLE_MS)
     }
 
     private fun refreshAsrLanguageLabel() {
@@ -159,24 +156,16 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
 
     private fun addSession() {
         sessionTurnCount++
-        updateSidebarSession()
-    }
-
-    private fun updateSidebarSession() {
-        val text = if (sessionTurnCount > 0) {
-            "●  当前对话\n    已交流 $sessionTurnCount 轮"
-        } else {
-            ""
+        mBindingPair.updateView {
+            tvSessions.text = "●  当前对话\n    已交流 $sessionTurnCount 轮"
+            tvSessions.setTextColor(COLOR_SESSION_ACTIVE)   // jade — clearly visible
         }
-        mBindingPair.updateView { tvSessions.text = text }
     }
 
     // ─────────────────────── WebView ───────────────────────
 
     private fun ensureResponseWebViewsConfigured() {
-        mBindingPair.updateView {
-            configureResponseWebView(wvResponse)
-        }
+        mBindingPair.updateView { configureResponseWebView(wvResponse) }
     }
 
     private fun configureResponseWebView(webView: WebView) {
@@ -199,11 +188,7 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
             defaultTextEncodingName = "utf-8"
         }
         webView.loadDataWithBaseURL(
-            ASSET_BASE_URL,
-            MarkdownRenderer.buildHtmlDocument(""),
-            "text/html",
-            "utf-8",
-            null
+            ASSET_BASE_URL, MarkdownRenderer.buildHtmlDocument(""), "text/html", "utf-8", null
         )
     }
 
@@ -211,19 +196,15 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
         val html = MarkdownRenderer.buildHtmlDocument(latestResponseMarkdown)
         mBindingPair.updateView {
             configureResponseWebView(wvResponse)
-            wvResponse.loadDataWithBaseURL(
-                ASSET_BASE_URL,
-                html,
-                "text/html",
-                "utf-8",
-                null
-            )
-            if (scrollToBottom) {
-                wvResponse.postDelayed({ wvResponse.scrollTo(0, Int.MAX_VALUE) }, 60L)
-            } else {
-                wvResponse.scrollTo(0, 0)
-            }
+            wvResponse.loadDataWithBaseURL(ASSET_BASE_URL, html, "text/html", "utf-8", null)
+            if (scrollToBottom) wvResponse.postDelayed({ wvResponse.scrollTo(0, Int.MAX_VALUE) }, 60L)
+            else wvResponse.scrollTo(0, 0)
         }
+    }
+
+    /** Scroll AI response up (dy < 0) or down (dy > 0). */
+    private fun scrollResponseBy(dy: Int) {
+        mBindingPair.updateView { wvResponse.scrollBy(0, dy) }
     }
 
     // ─────────────────────── Agent interaction ───────────────────────
@@ -231,6 +212,7 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
     private fun askAgent(text: String) {
         if (isProcessing) return
         isProcessing = true
+        val myGen = generation
         setStatus("AI 思考中…", COLOR_THINKING)
         setResponseMarkdown("", immediate = true, scrollToBottom = false)
 
@@ -238,45 +220,67 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
             openClawClient?.askStreaming(
                 text = text,
                 onDelta = { _, fullText ->
-                    mainHandler.post {
-                        setResponseMarkdown(
-                            markdown = fullText,
-                            immediate = false,
-                            scrollToBottom = true
-                        )
-                    }
+                    if (generation != myGen) return@askStreaming
+                    mainHandler.post { setResponseMarkdown(fullText, immediate = false, scrollToBottom = true) }
                 },
                 onComplete = { finalText ->
+                    if (generation != myGen) return@askStreaming
                     mainHandler.post {
                         isProcessing = false
-                        setResponseMarkdown(
-                            markdown = finalText,
-                            immediate = true,
-                            scrollToBottom = true
-                        )
+                        setResponseMarkdown(finalText, immediate = true, scrollToBottom = true)
                         addSession()
-                        if (isListening) {
-                            setStatus("正在监听 ${languages[langIndex].displayName}…", COLOR_LISTENING)
-                        } else {
-                            setStatus("已暂停，单击继续", COLOR_IDLE)
-                        }
+                        if (isListening) setStatus("正在监听 ${languages[langIndex].displayName}…", COLOR_LISTENING)
+                        else setStatus("已暂停，单击继续", COLOR_IDLE)
                     }
                 },
                 onError = { error ->
+                    if (generation != myGen) return@askStreaming
                     mainHandler.post {
                         isProcessing = false
-                        setResponseMarkdown(
-                            markdown = "⚠ $error",
-                            immediate = true,
-                            scrollToBottom = false
-                        )
-                        if (isListening) {
-                            setStatus("正在监听 ${languages[langIndex].displayName}…", COLOR_LISTENING)
-                        } else {
-                            setStatus("已暂停，单击继续", COLOR_IDLE)
-                        }
+                        setResponseMarkdown("⚠ $error", immediate = true, scrollToBottom = false)
+                        if (isListening) setStatus("正在监听 ${languages[langIndex].displayName}…", COLOR_LISTENING)
+                        else setStatus("已暂停，单击继续", COLOR_IDLE)
                     }
                 }
+            )
+        }
+    }
+
+    /**
+     * Full conversation reset (bound to TripleClick — avoids system long-press menu):
+     *  1. Bumps generation → silently drops all in-flight streaming callbacks.
+     *  2. Clears local UI immediately.
+     *  3. Sends "/reset" to the agent server to wipe multi-turn context.
+     */
+    private fun resetConversation() {
+        generation++
+        isProcessing = false
+        sessionTurnCount = 0
+
+        setSpeechInput("", isPartial = false)
+        setResponseMarkdown("", immediate = true, scrollToBottom = false)
+        mBindingPair.updateView {
+            tvSessions.text = ""
+            tvSessions.setTextColor(COLOR_SESSION_IDLE)
+        }
+
+        val (statusText, statusColor) = if (isListening) {
+            "正在监听 ${languages[langIndex].displayName}…" to COLOR_LISTENING
+        } else {
+            "单击镜腿开始对话" to COLOR_IDLE
+        }
+        setStatus(statusText, statusColor)
+        FToast.show("正在重置对话…")
+
+        val myGen = generation
+        lifecycleScope.launch(Dispatchers.IO) {
+            openClawClient?.askStreaming(
+                text       = "/reset",
+                onDelta    = { _, _ -> },
+                onComplete = { _ ->
+                    if (generation == myGen) mainHandler.post { FToast.show("对话已重置") }
+                },
+                onError    = { _ -> /* local already cleared */ }
             )
         }
     }
@@ -284,20 +288,14 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
     // ─────────────────────── Speech control ───────────────────────
 
     private fun startListening() {
-        val langHints = listOf(languages[langIndex].code)
-        speechEngine?.start(langHints)
+        speechEngine?.start(listOf(languages[langIndex].code))
         setStatus("正在监听 ${languages[langIndex].displayName}…", COLOR_LISTENING)
     }
 
-    private fun stopListening() {
-        speechEngine?.stop()
-    }
+    private fun stopListening() = speechEngine?.stop() ?: Unit
 
     private fun toggleListening() {
-        if (speechEngine == null) {
-            FToast.show("语音引擎未就绪")
-            return
-        }
+        if (speechEngine == null) { FToast.show("语音引擎未就绪"); return }
         isListening = !isListening
         if (isListening) {
             startListening()
@@ -310,45 +308,28 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
 
     private fun switchAsrLanguage(direction: Int) {
         val wasListening = isListening
-        if (wasListening) {
-            stopListening()
-            isListening = false
-        }
+        if (wasListening) { stopListening(); isListening = false }
         langIndex = (langIndex + direction + languages.size) % languages.size
         refreshAsrLanguageLabel()
         FToast.show("语音语言: ${languages[langIndex].displayName}")
-        if (wasListening) {
-            isListening = true
-            startListening()
-        }
+        if (wasListening) { isListening = true; startListening() }
     }
 
-    private fun clearDisplay() {
-        sessionTurnCount = 0
-        setSpeechInput("", isPartial = false)
-        setResponseMarkdown("", immediate = true, scrollToBottom = false)
-        mBindingPair.updateView { tvSessions.text = "" }
-        val (statusText, color) = if (isListening) {
-            "正在监听 ${languages[langIndex].displayName}…" to COLOR_LISTENING
-        } else {
-            "单击镜腿开始对话" to COLOR_IDLE
-        }
-        setStatus(statusText, color)
-        FToast.show("已清空")
-    }
-
-    // ─────────────────────── Gesture actions ───────────────────────
+    // ─────────────────────── Gesture map ───────────────────────
 
     private fun collectTempleActions() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 templeActionViewModel.state.collect { action ->
                     when (action) {
-                        is TempleAction.Click        -> toggleListening()
-                        is TempleAction.DoubleClick  -> { FToast.show("退出"); finish() }
-                        is TempleAction.SlideForward -> switchAsrLanguage(+1)
-                        is TempleAction.SlideBackward -> switchAsrLanguage(-1)
-                        is TempleAction.LongClick    -> clearDisplay()
+                        is TempleAction.Click          -> toggleListening()
+                        is TempleAction.DoubleClick    -> { FToast.show("退出"); finish() }
+                        is TempleAction.SlideForward   -> switchAsrLanguage(+1)
+                        is TempleAction.SlideBackward  -> switchAsrLanguage(-1)
+                        is TempleAction.SlideUpwards   -> scrollResponseBy(-SCROLL_STEP)
+                        is TempleAction.SlideDownwards -> scrollResponseBy(+SCROLL_STEP)
+                        // TripleClick → reset (avoids system long-press menu conflict)
+                        is TempleAction.TripleClick    -> resetConversation()
                         else -> Unit
                     }
                 }
@@ -358,23 +339,18 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
 
     // ─────────────────────── Permissions ───────────────────────
 
-    private fun hasMicPermission(): Boolean =
+    private fun hasMicPermission() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED
 
     override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_MIC &&
             grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
-        ) {
-            initSpeechEngine()
-        } else {
-            setStatus("需要麦克风权限才能使用", COLOR_ERROR)
-        }
+        ) initSpeechEngine()
+        else setStatus("需要麦克风权限才能使用", COLOR_ERROR)
     }
 
     companion object {
@@ -383,15 +359,24 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
         private const val ASSET_BASE_URL = "file:///android_asset/"
         private const val WEBVIEW_READY_TAG = "agent_response_webview_ready"
 
-        // Status text colors
-        @ColorInt private val COLOR_IDLE      = Color.parseColor("#1E2D4A")
-        @ColorInt private val COLOR_LISTENING = Color.parseColor("#00D48A")
-        @ColorInt private val COLOR_THINKING  = Color.parseColor("#FFB020")
-        @ColorInt private val COLOR_ERROR     = Color.parseColor("#FF6B6B")
+        /** px scrolled per SlideUpwards / SlideDownwards swipe */
+        private const val SCROLL_STEP = 320
 
-        // User input text colors
-        @ColorInt private val COLOR_INPUT_EMPTY   = Color.parseColor("#1A2840")
-        @ColorInt private val COLOR_INPUT_PARTIAL = Color.parseColor("#4A7099")
-        @ColorInt private val COLOR_INPUT_FINAL   = Color.parseColor("#7AAED4")
+        // ── Status bar colours ─────────────────────────────────────────────
+        // COLOR_IDLE is intentionally dim — status bar is secondary info.
+        // When active (listening/thinking/error) it becomes clearly visible.
+        @ColorInt private val COLOR_IDLE      = Color.parseColor("#484838")   // warm dim
+        @ColorInt private val COLOR_LISTENING = Color.parseColor("#00C896")   // jade green
+        @ColorInt private val COLOR_THINKING  = Color.parseColor("#F5A30A")   // warm amber
+        @ColorInt private val COLOR_ERROR     = Color.parseColor("#FF5555")   // red
+
+        // ── User speech input colours ──────────────────────────────────────
+        @ColorInt private val COLOR_INPUT_EMPTY   = Color.parseColor("#181816") // near invisible
+        @ColorInt private val COLOR_INPUT_PARTIAL = Color.parseColor("#808060") // mid warm
+        @ColorInt private val COLOR_INPUT_FINAL   = Color.parseColor("#EEE8DC") // warm ivory — most visible
+
+        // ── Sidebar session colours ────────────────────────────────────────
+        @ColorInt private val COLOR_SESSION_IDLE   = Color.parseColor("#303028")
+        @ColorInt private val COLOR_SESSION_ACTIVE = Color.parseColor("#00C896") // jade — matches accent
     }
 }

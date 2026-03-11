@@ -125,7 +125,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ### 4. 启动应用
 
-在 RayNeo X3 上找到 **XR APP INIT** 应用并打开，单击镜腿即可开始语音对话。
+在 RayNeo X3 上找到 **rayclaw** 应用并打开，单击镜腿即可开始语音对话。
 
 ---
 
