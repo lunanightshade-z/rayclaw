@@ -16,3 +16,5 @@
 local.properties
 # Runtime config overlay — contains secrets, never commit
 rayclaw.conf
+# Local development notes — not part of the public repo
+docs/
