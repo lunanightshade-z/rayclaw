@@ -1,6 +1,7 @@
 package com.rayclaw.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
@@ -67,6 +68,19 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
             )
         }
         collectTempleActions()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh the language badge whenever we return from SettingsActivity.
+        mBindingPair.updateView {
+            tvLanguage.text = "语音: ${currentLanguageDisplayName()}"
+        }
+        // Execute a conversation reset requested from SettingsActivity.
+        if (AppSettings.pendingReset) {
+            AppSettings.pendingReset = false
+            resetConversation()
+        }
     }
 
     override fun onDestroy() {
@@ -326,15 +340,17 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
      * Temple gesture bindings:
      *
      *  Click          — toggle listening on/off
+     *  TripleClick    — open SettingsActivity (language / listen mode / reset)
      *  DoubleClick    — exit app
-     *  TripleClick    — reset conversation
      *  SlideForward   — scroll AI response UP   (read previous)
      *  SlideBackward  — scroll AI response DOWN  (read more)
      *  SlideUpwards   — scroll AI response UP
      *  SlideDownwards — scroll AI response DOWN
      *
-     * Language is configured via rayclaw.conf (ASR_LANGUAGE=zh|en|ja|...).
-     * Listen mode is configured via rayclaw.conf (ASR_LISTEN_MODE=continuous|oneshot).
+     * NOTE: LongClick deliberately NOT used — it triggers the system settings panel
+     *       (WiFi, quick settings) before the app sees the event.
+     *       DoubleFingerClick not used — physically impractical on the narrow X3 temple pad.
+     *       "Reset conversation" lives inside SettingsActivity as the third row.
      */
     private fun collectTempleActions() {
         lifecycleScope.launch {
@@ -342,8 +358,8 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
                 templeActionViewModel.state.collect { action ->
                     when (action) {
                         is TempleAction.Click          -> toggleListening()
+                        is TempleAction.TripleClick    -> openSettings()
                         is TempleAction.DoubleClick    -> { FToast.show("退出"); finish() }
-                        is TempleAction.TripleClick    -> resetConversation()
                         is TempleAction.SlideForward   -> scrollResponseBy(-SCROLL_STEP)
                         is TempleAction.SlideBackward  -> scrollResponseBy(+SCROLL_STEP)
                         is TempleAction.SlideUpwards   -> scrollResponseBy(-SCROLL_STEP)
@@ -353,6 +369,10 @@ class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
                 }
             }
         }
+    }
+
+    private fun openSettings() {
+        startActivity(Intent(this, SettingsActivity::class.java))
     }
 
     // ─────────────────────── Permissions ───────────────────────

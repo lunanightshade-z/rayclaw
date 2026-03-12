@@ -1,5 +1,6 @@
 package com.rayclaw.app.asr
 
+import com.rayclaw.app.AppSettings
 import com.rayclaw.app.BuildConfig
 import com.rayclaw.app.RuntimeConfig
 
@@ -9,8 +10,9 @@ import com.rayclaw.app.RuntimeConfig
  *
  *  优先级（高→低）：
  *   1. rayclaw.conf（运行时，开发者通过 adb push 配置，无需重新编译）
- *   2. local.properties → BuildConfig（编译时注入，baked into APK）
- *   3. 代码默认值
+ *   2. AppSettings（用户通过眼镜内 SettingsActivity 配置，持久化到 SharedPreferences）
+ *   3. local.properties → BuildConfig（编译时注入，baked into APK）
+ *   4. 代码默认值
  *
  *  可配置项一览（rayclaw.conf 中可设置）：
  *
@@ -45,20 +47,25 @@ object AsrConfig {
 
     /**
      * 语音识别语言。
+     * 优先级：rayclaw.conf → AppSettings（SettingsActivity）→ 默认 zh
      * rayclaw.conf 键名：ASR_LANGUAGE
      * 取值：zh（中文）/ en / ja / ko / fr / de / es / ru
-     * 默认：zh（中文）
      */
     val LANGUAGE: String
-        get() = RuntimeConfig.get("ASR_LANGUAGE", "zh").trim().lowercase()
+        get() = RuntimeConfig.get("ASR_LANGUAGE", AppSettings.language)
+            .trim().lowercase().ifBlank { AppSettings.language }
 
     /**
      * 监听模式。
+     * 优先级：rayclaw.conf → AppSettings（SettingsActivity）→ 默认 continuous
      * rayclaw.conf 键名：ASR_LISTEN_MODE
      * 取值：continuous（默认）/ oneshot
      */
     val LISTEN_MODE: ListenMode
-        get() = when (RuntimeConfig.get("ASR_LISTEN_MODE", "continuous").trim().lowercase()) {
+        get() = when (
+            RuntimeConfig.get("ASR_LISTEN_MODE", AppSettings.listenModeKey)
+                .trim().lowercase().ifBlank { "continuous" }
+        ) {
             "oneshot", "one_shot", "one-shot" -> ListenMode.ONESHOT
             else -> ListenMode.CONTINUOUS
         }

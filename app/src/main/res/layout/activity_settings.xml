@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#020202">
+
+    <!--
+        Color theme: Obsidian + Jade (matches AgentChatActivity)
+        ─ Near-pure black (#020202) → near-transparent on AR waveguide
+        ─ Jade green (#00C896) for selected row & title
+        ─ Warm ivory (#EEE8DC) for values
+        ─ Dim grey (#484838) for unselected labels
+
+        Gestures:
+          上/下划   → 切换选中行
+          前/后划   → 向前/向后循环该行的值
+          单击      → 循环值 / 确认重置行
+          双击      → 保存并返回
+          三击      → 取消并返回
+
+        NOTE: LongClick deliberately avoided — triggers system settings panel.
+    -->
+
+    <!-- Title bar -->
+    <TextView
+        android:id="@+id/tvSettingsTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:text="⚙  设置"
+        android:textColor="#00C896"
+        android:textSize="15sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Top divider -->
+    <View
+        android:id="@+id/dividerTop"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_marginTop="8dp"
+        android:background="#161614"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvSettingsTitle" />
+
+    <!-- ── Row 0: Listen Mode ─────────────────────────────────────── -->
+
+    <LinearLayout
+        android:id="@+id/rowListenMode"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="12dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="14dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/dividerTop">
+
+        <TextView
+            android:id="@+id/tvListenModeLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="监听模式"
+            android:textColor="#484838"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tvListenModeValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="持续监听"
+            android:textColor="#EEE8DC"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <!-- ── Row 1: Language ───────────────────────────────────────── -->
+
+    <LinearLayout
+        android:id="@+id/rowLanguage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="12dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="14dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/rowListenMode">
+
+        <TextView
+            android:id="@+id/tvLanguageLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="识别语言"
+            android:textColor="#484838"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tvLanguageValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="中文"
+            android:textColor="#EEE8DC"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <!-- ── Row 2: Reset Conversation (action, orange warning palette) ───── -->
+
+    <LinearLayout
+        android:id="@+id/rowReset"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="12dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="14dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/rowLanguage">
+
+        <TextView
+            android:id="@+id/tvResetLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="重置对话"
+            android:textColor="#4A3020"
+            android:textSize="15sp" />
+
+        <!-- No value TextView — this is a one-shot action, not a cycle -->
+
+    </LinearLayout>
+
+    <!-- Bottom hint bar -->
+    <TextView
+        android:id="@+id/tvSettingsHint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:gravity="center"
+        android:text="上/下划: 切换项目  前/后划或单击: 切换值  双击: 保存  三击: 取消"
+        android:textColor="#242420"
+        android:textSize="11sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

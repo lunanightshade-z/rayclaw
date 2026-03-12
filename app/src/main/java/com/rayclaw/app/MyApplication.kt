@@ -7,6 +7,9 @@ class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         MercurySDK.init(this)
+        // AppSettings must be initialised first so it can serve as the fallback tier
+        // for AsrConfig / AgentConfig before RuntimeConfig loads rayclaw.conf overrides.
+        AppSettings.init(this)
         // RuntimeConfig must be initialised before any Config object (AgentConfig / AsrConfig)
         // is first accessed, so that runtime overrides take effect immediately.
         RuntimeConfig.init(this)

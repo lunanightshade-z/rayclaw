@@ -15,9 +15,11 @@
         Gestures:
           单击          → 开始/暂停对话
           上划 / 下划   → 上下滚动 AI 回复
-          前划 / 后划   → 切换识别语言
-          三击          → 重置对话（发送 /reset）   ← avoids system long-press menu
+          三击          → 打开设置（语言 / 监听模式 / 重置对话）
           双击          → 退出
+
+        NOTE: LongClick deliberately avoided — triggers system WiFi/settings panel.
+              DoubleFingerClick not used — physically impractical on narrow X3 temple pad.
     -->
 
     <androidx.constraintlayout.widget.Guideline
@@ -191,7 +193,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:gravity="center"
-        android:text="单击: 对话  上/下划: 滚动  前/后划: 切换语言  三击: 重置  双击: 退出"
+        android:text="单击: 对话  上/下划: 滚动  三击: 设置  双击: 退出"
         android:textColor="#242420"
         android:textSize="11sp"
         app:layout_constraintBottom_toBottomOf="parent"
