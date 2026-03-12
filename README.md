@@ -15,7 +15,7 @@
 | **多语言 ASR** | 向前/向后滑动镜腿切换识别语言（中文、英文、日文等） |
 | **双眼同步渲染** | 基于 Mercury SDK `BaseMirrorActivity`，左右眼画面完全同步 |
 | **多翻译引擎** | 内置 6 种翻译提供商（MyMemory / 百度 / 有道 / 腾讯 / DeepL / Azure） |
-| **手势全控** | 单击 · 双击 · 长按 · 向前滑 · 向后滑，5 种手势覆盖全部交互 |
+| **手势全控** | 单击 · 双击 · 三击 · 向前滑 · 向后滑，5 种手势覆盖全部交互 |
 
 ---
 
@@ -26,7 +26,7 @@
 | 单击镜腿 | 开始 / 暂停监听 |
 | 向前滑动 | 切换到下一语言 |
 | 向后滑动 | 切换到上一语言 |
-| 长按镜腿 | 清空当前对话 |
+| 三击镜腿 | 重置当前对话 |
 | 双击镜腿 | 退出应用 |
 
 ---
@@ -39,7 +39,7 @@ RayClaw
 │   └── AgentChatActivity         — 继承 BaseMirrorActivity，双眼同步 Chat 界面
 ├── 语音识别 (ASR)
 │   ├── SpeechEngine              — DashScope WebSocket 实时识别
-│   └── AsrConfig / AsrLanguage   — 配置与多语言枚举
+│   ├── AsrConfig / AppLanguage   — 配置与多语言枚举
 ├── AI 对话
 │   ├── OpenClawClient            — HTTP SSE 流式客户端
 │   └── AgentConfig               — 网关地址 / Agent ID / Token 配置
@@ -86,14 +86,14 @@ cd rayclaw
 复制模板并填入你的密钥：
 
 ```bash
-cp local.properties.example local.properties
+cp local.properties.template local.properties
 ```
 
 编辑 `local.properties`：
 
 ```properties
 # Android SDK 路径
-sdk.dir=C:\Users\<你的用户名>\AppData\Local\Android\Sdk
+sdk.dir=/path/to/android/sdk
 
 # DashScope 语音识别（阿里云）
 # 申请地址：https://dashscope.console.aliyun.com/
@@ -135,10 +135,10 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 rayclaw/
 ├── app/
 │   ├── src/main/
-│   │   ├── java/com/example/xrappinit/
+│   │   ├── java/com/rayclaw/app/
 │   │   │   ├── AgentChatActivity.kt        — 主界面，手势 + 对话管理
-│   │   │   ├── TranslatorActivity.kt       — 翻译功能界面
 │   │   │   ├── MyApplication.kt            — Application 初始化 MercurySDK
+│   │   │   ├── RuntimeConfig.kt            — 运行时配置覆盖（rayclaw.conf）
 │   │   │   ├── agent/                      — OpenClaw 客户端
 │   │   │   ├── asr/                        — 语音识别
 │   │   │   ├── translation/                — 翻译引擎
@@ -149,7 +149,8 @@ rayclaw/
 │   │   └── MercuryAndroidSDK-*.aar         — Mercury SDK 本地依赖
 │   └── build.gradle.kts
 ├── rayneo-x3-ar-dev-guide/                 — AR 开发完整指引（见下方）
-├── local.properties.example                — API Key 配置模板
+├── local.properties.template               — API Key 配置模板
+├── rayclaw.conf.template                   — 运行时配置模板（adb push 到设备）
 ├── build_and_install.ps1                   — 一键构建安装脚本
 └── test_openclaw_gateway.py                — OpenClaw 网关连接测试脚本
 ```
@@ -179,6 +180,8 @@ rayclaw/
 
 所有密钥通过 `local.properties` 注入 `BuildConfig`，在代码中通过 `BuildConfig.DASHSCOPE_API_KEY` 等字段访问，**不硬编码在源码中**。
 
+运行时也可通过 `rayclaw.conf`（推送到设备，不入库）覆盖配置，无需重新编译。参考 `rayclaw.conf.template`。
+
 如需测试 OpenClaw 网关连通性：
 
 ```bash
@@ -189,4 +192,6 @@ python test_openclaw_gateway.py
 
 ## License
 
-本项目仅供学习和参考，Mercury Android SDK 版权归 RayNeo / FFalcon 所有。
+MIT License — 详见 [LICENSE](LICENSE)
+
+> Mercury Android SDK 版权归 RayNeo / FFalcon 所有，仅作为本地依赖包含。

@@ -7,6 +7,11 @@
     <!-- 网络权限（Agent API 调用） -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+        usesCleartextTraffic is intentionally true: the OpenClaw gateway URL is
+        user-configurable at runtime (rayclaw.conf) and may point to a self-hosted
+        HTTP server on a local network. Remove this flag if your deployment uses HTTPS only.
+    -->
     <application
         android:name=".MyApplication"
         android:allowBackup="true"
@@ -17,7 +22,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.XRAPPINIT">
+        android:theme="@style/Theme.RayClaw">
 
         <!-- 让眼镜 Launcher 识别此应用 -->
         <meta-data
