@@ -1,8 +1,9 @@
 # RayClaw
 
-**RayClaw** 是一款专为 [RayNeo X3](https://www.rayneo.com/) AR 眼镜设计的智能语音 AI 助手。它将实时语音识别、流式大模型对话、多语言翻译集成在一起，全程通过镜腿触控手势驱动，让双手彻底解放。
+RayClaw 是一款专为 [RayNeo X3 Pro](https://www.rayneo.com/) AR 眼镜打造的智能语音 AI 助手。
+它将实时语音识别（阿里云 DashScope Paraformer）、流式大模型对话（OpenClaw 智能体网关）、Markdown 渲染和多语言翻译集成在一起，全程通过镜腿触控手势驱动，双手彻底解放。
 
-本仓库同时附带一份完整的 **[RayNeo X3 AR 应用开发指引](rayneo-x3-ar-dev-guide/README.md)**（25 篇文章），供开发者搭建自己的 AR 应用参考。
+本仓库同时附带一份完整的 [RayNeo X3 AR 应用开发指引](rayneo-x3-ar-dev-guide/README.md)（25 篇文章），供开发者搭建自己的 AR 应用参考。
 
 ---
 
@@ -13,11 +14,12 @@
 - [技术架构](#技术架构)
 - [环境要求](#环境要求)
 - [OpenClaw 智能体网关部署](#openclaw-智能体网关部署)
-- [快速开始](#快速开始)
-- [从应用商店安装后配置 API Key](#从应用商店安装后配置-api-key)
+- [下载与安装（免编译）](#下载与安装免编译)
+- [从源码构建（开发者）](#从源码构建开发者)
 - [配置详解](#配置详解)
 - [项目结构](#项目结构)
 - [开发指引](#开发指引rayneo-x3-ar-dev-guide)
+- [依赖说明](#依赖说明)
 - [License](#license)
 
 ---
@@ -26,150 +28,146 @@
 
 | 功能 | 说明 |
 |------|------|
-| **实时语音识别** | 接入阿里云 DashScope Paraformer，WebSocket 流式推送，延迟极低 |
-| **流式 AI 对话** | 通过 OpenClaw 智能体网关（SSE 协议）与 LLM 实时交互，逐字渲染 |
-| **Markdown 渲染** | AI 回复支持标题、加粗、代码块、表格等完整 Markdown 格式 |
-| **多语言 ASR** | 支持中文、英语、日语、韩语、法语、德语、西班牙语、俄语 |
-| **多翻译引擎** | 内置 6 种提供商：MyMemory / 百度 / 有道 / 腾讯 / DeepL / Azure |
-| **双眼同步渲染** | 继承 Mercury SDK `BaseMirrorActivity`，左右眼画面完全同步 |
-| **全手势操控** | 7 种镜腿手势覆盖全部交互，无需手机 |
-| **运行时配置** | 无需重编译，通过 `adb push` 覆盖 API Key 和服务器地址 |
+| 实时语音识别 | 接入阿里云 DashScope Paraformer，WebSocket 全双工流式推送，延迟极低 |
+| 流式 AI 对话 | 通过 OpenClaw 智能体网关（SSE 协议）与 LLM 实时交互，逐字渲染 |
+| Markdown 渲染 | AI 回复支持标题、加粗、代码块、表格等完整 Markdown 格式（CommonMark + GFM 表格） |
+| 多语言 ASR | 支持中文、英语、日语、韩语、法语、德语、西班牙语、俄语共 8 种语言 |
+| 多翻译引擎 | 内置 6 种提供商：MyMemory / 百度 / 有道 / 腾讯 / DeepL / Azure |
+| 双眼同步渲染 | 继承 Mercury SDK `BaseMirrorActivity`，左右眼画面完全同步 |
+| 全手势操控 | 7 种镜腿手势覆盖全部交互，无需手机 |
+| 眼镜内设置 | 三击镜腿打开设置页，可切换识别语言、监听模式、重置对话 |
+| 运行时配置 | 无需重编译，通过 `adb push` 覆盖 API Key 和服务器地址 |
 
 ---
 
 ## 手势操作
 
-| 手势 | 动作 |
-|------|------|
-| **单击** | 开始 / 暂停语音监听 |
-| **双击** | 退出应用 |
-| **三击** | 重置当前对话（同步清除服务端上下文） |
-| **向前滑动** | 切换到下一识别语言 |
-| **向后滑动** | 切换到上一识别语言 |
-| **向上滑动** | AI 回复区域向上滚动 |
-| **向下滑动** | AI 回复区域向下滚动 |
+| 手势 | 主界面动作 | 设置页动作 |
+|------|-----------|-----------|
+| 单击 | 开始 / 暂停语音监听 | 切换当前选项值 |
+| 双击 | 退出应用 | 保存设置并返回 |
+| 三击 | 打开设置页 | 取消并返回 |
+| 向前滑动 | AI 回复向上滚动 | 切换当前选项值 |
+| 向后滑动 | AI 回复向下滚动 | 切换当前选项值 |
+| 向上滑动 | AI 回复向上滚动 | 切换上一行 |
+| 向下滑动 | AI 回复向下滚动 | 切换下一行 |
+
+> 注意： 长按（LongClick）未使用——会触发系统设置面板。双指点击因镜腿触控面积有限不可用。
 
 ---
 
 ## 技术架构
 
 ```
-com.rayclaw.app
-│
-├── AgentChatActivity          主界面：继承 BaseMirrorActivity，管理手势 + 状态机
-├── MyApplication              Application 入口：初始化 MercurySDK 和 RuntimeConfig
-├── RuntimeConfig              运行时配置系统：读取 rayclaw.conf，优先级高于 BuildConfig
-│
-├── agent/
-│   ├── AgentConfig            OpenClaw 网关参数（运行时 > BuildConfig）
-│   └── OpenClawClient         HTTP SSE 流式客户端（OkHttp + Kotlin Coroutines）
-│
-├── asr/
-│   ├── SpeechEngine           DashScope WebSocket 实时语音识别引擎
-│   ├── AsrConfig              ASR 参数：采样率 16kHz、帧大小 3200B、模型选择
-│   └── AppLanguage            支持语言枚举（代码、显示名、Locale）
-│
-├── translation/
-│   ├── TranslationProvider    翻译提供商接口
-│   ├── TranslationManager     工厂（策略模式）：按配置选择提供商
-│   ├── TranslationConfig      各提供商 Key 集中配置
-│   └── providers/             MyMemory · 百度 · 有道 · 腾讯 · DeepL · Azure
-│
-└── ui/
-    └── MarkdownRenderer       Markdown → HTML 转换（commonmark-java，防 XSS）
+┌────────────────────────────────────────────────────────┐
+│                    RayNeo X3 Pro 眼镜                    │
+│                                                        │
+│  ┌──────────────┐   ┌──────────────┐   ┌────────────┐  │
+│  │ SpeechEngine │   │ OpenClawClient│   │ Markdown   │  │
+│  │  (WebSocket) │   │   (HTTP SSE) │   │ Renderer   │  │
+│  └──────┬───────┘   └──────┬───────┘   └─────┬──────┘  │
+│         │                  │                 │         │
+│  ┌──────┴──────────────────┴─────────────────┴──────┐  │
+│  │           AgentChatActivity                       │  │
+│  │     BaseMirrorActivity（双屏同步渲染）             │  │
+│  │     TempleAction（镜腿触控手势）                   │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                        │
+│          蓝牙连接手机 → 共享手机网络                      │
+└──────────────────────┬─────────────────────────────────┘
+                       │ 互联网
+          ┌────────────┴────────────┐
+          │                         │
+   ┌──────┴──────┐          ┌──────┴──────┐
+   │  DashScope  │          │  OpenClaw   │
+   │  Paraformer │          │  智能体网关  │
+   │  (语音识别)  │          │  (LLM 对话) │
+   └─────────────┘          └─────────────┘
 ```
+
+### 双通道网络通信
+
+| 通道 | 协议 | 用途 |
+|------|------|------|
+| 语音识别 | WebSocket 全双工 | 实时推送 PCM 音频（16kHz/16bit/单声道），接收识别结果 |
+| AI 对话 | HTTP SSE 流式 | 发送文本到 OpenClaw `/v1/responses`，逐字接收 AI 回复 |
 
 ### 关键设计决策
 
 | 设计 | 说明 |
 |------|------|
-| **Generation 计数器** | `AgentChatActivity` 中每次重置对话都递增 `generation`，所有流式回调捕获启动时的值，过期回调静默丢弃，彻底避免 race condition |
-| **渲染节流** | Markdown 渲染有 120ms 节流（`STREAM_RENDER_THROTTLE_MS`），避免频繁 WebView load 阻塞 UI |
-| **密钥分级** | `rayclaw.conf`（运行时）> `local.properties`（编译时 BuildConfig）> 代码默认值；日志只记录 key 名，不记录值 |
-| **HTML 转义** | `MarkdownRenderer` 在 commonmark 解析前 sanitize 输入，防止恶意 Markdown 注入 XSS |
+| Generation 计数器 | 每次重置对话递增 `generation`，所有流式回调捕获启动时的值，过期回调静默丢弃，彻底避免 race condition |
+| 渲染节流 | Markdown 渲染有 120ms 节流（`STREAM_RENDER_THROTTLE_MS`），避免频繁 WebView load 阻塞 UI |
+| 密钥分级 | `rayclaw.conf`（运行时）> `AppSettings`（用户设置）> `BuildConfig`（编译时）> 代码默认值 |
+| HTML 安全 | WebView 禁用 JavaScript 和 DOM 存储；`MarkdownRenderer` 在 CommonMark 解析前 sanitize 输入，防止 XSS |
 
 ---
 
 ## 环境要求
 
+### 硬件
+
+| 设备 | 说明 |
+|------|------|
+| RayNeo X3 Pro 眼镜 | 主运行设备（或其他基于 Mercury SDK 的兼容设备） |
+| 手机（蓝牙配对） | 眼镜通过蓝牙连接手机共享网络，支持局域网或公网访问 |
+| 电脑 | 安装 ADB，用于推送 APK 和配置文件 |
+
+### 外部服务
+
+| 服务 | 用途 | 获取方式 |
+|------|------|----------|
+| 阿里云 DashScope | Paraformer 实时语音识别 | [控制台申请](https://dashscope.console.aliyun.com/) |
+| OpenClaw 智能体网关 | LLM 流式对话 | 自行部署（见下方） |
+
+### 编译环境（仅从源码构建时需要）
+
 | 工具 | 版本 |
 |------|------|
 | Android Studio | Meerkat（2024.3.1）以上 |
 | JDK | 17（Android Studio 内置 JBR） |
-| Gradle | 9.3.1（Wrapper 自动下载） |
+| Gradle | 8.3+（Wrapper 自动下载） |
 | compileSdk | 36（Android 16） |
 | minSdk | 26（Android 8.0） |
-| 目标硬件 | RayNeo X3 眼镜（或其他基于 Mercury SDK 的兼容设备） |
-
-**外部服务**
-
-| 服务 | 用途 | 申请地址 |
-|------|------|----------|
-| 阿里云 DashScope | Paraformer 实时语音识别 | https://dashscope.console.aliyun.com/ |
-| OpenClaw 智能体网关 | LLM 流式对话 | 本地部署（见下方） |
 
 ---
 
 ## OpenClaw 智能体网关部署
 
-RayClaw 依赖 OpenClaw 智能体网关提供 LLM 流式对话能力。本部分指引如何在本地或服务器部署 OpenClaw。
-
-### 前置要求
-
-- **Node.js** 16.0 或更高版本
-- **npm** 8.0 或更高版本
-- 能连接到互联网（下载 OpenClaw 包）
+RayClaw 依赖 OpenClaw 智能体网关提供 LLM 流式对话能力。
 
 ### 安装 OpenClaw
 
-#### 1. 卸载旧版本（如有）
-
 ```bash
+# 卸载旧版本（如有）
 npm uninstall -g openclaw
-```
 
-#### 2. 安装指定版本
-
-由于最新版本在某些模型的 function call 上存在问题，建议安装以下稳定版本：
-
-```bash
+# 安装稳定版本（最新版本在部分模型的 function call 上存在问题）
 npm install -g openclaw@2026.3.2
 ```
 
-#### 3. 初始化配置
-
-运行交互式引导程序，同时注册 OpenClaw 为后台服务：
+### 初始化配置并注册服务
 
 ```bash
 openclaw onboard --install-daemon
 ```
 
-### 配置注意事项
-
-在初始化过程中，**请注意以下选项不能使用默认值**：
+在初始化过程中，以下选项不能使用默认值：
 
 | 配置项 | 推荐值 | 说明 |
-|------|--------|------|
-| **Gateway bind** | `LAN` 或 `tailnet` | 选择 LAN 模式支持局域网访问，选择 tailnet 需额外配置 Tailscale |
-| **Gateway auth** | `Token` | 使用 Token 认证保护 API 安全 |
-| **Gateway token** | 自生成强密钥 | 建议使用随机数生成器：`openssl rand -hex 32` |
+|--------|--------|------|
+| Gateway bind | `LAN` 或 `tailnet` | LAN 模式支持局域网访问；tailnet 需额外配置 Tailscale |
+| Gateway auth | `Token` | 使用 Token 认证保护 API 安全 |
+| Gateway token | 自生成强密钥 | 建议：`openssl rand -hex 32` |
 
-其他配置项（如模型、API 提供商等）根据个人需求选择。
+其他配置项根据个人需求选择。
 
 ### 修改配置文件
 
-部署完成后，需要修改配置文件以支持 HTTP 端点：
+部署完成后编辑 `~/.openclaw/openclaw.json`：
 
-**配置文件位置：**
-```
-~/.openclaw/openclaw.json
-```
-
-**修改步骤：**
-
-1. 打开上述配置文件
-2. 定位到 `gateway.bind` 配置项，确保设置为 `lan` 或 `tailnet`
-3. 在 `tailscale` 或相关部分下方，新增以下 HTTP 端点配置：
+1. 确认 `gateway.bind` 设置为 `lan` 或 `tailnet`
+2. 新增 HTTP 端点配置：
 
 ```json
 "http": {
@@ -182,131 +180,52 @@ openclaw onboard --install-daemon
 
 ### 验证部署
 
-完成后，启动或重启 OpenClaw 服务：
-
 ```bash
-# 重启守护进程
 openclaw restart
-
-# 查看服务状态
 openclaw status
 ```
 
-在眼镜应用中配置 OpenClaw 的网关地址（如 `http://192.168.1.x:port`）和 Token，即可连接使用。
-
 ---
 
-## 快速开始
+## 下载与安装（免编译）
 
-### 1. 克隆仓库
+不想搭建开发环境？直接下载预编译的 APK 即可。
 
-```bash
-git clone https://github.com/lunanightshade-z/rayclaw.git
-cd rayclaw
-```
+> 说明： RayNeo X3 Pro 没有内置应用商店，所有第三方应用均需通过 ADB sideload 安装。
 
-### 2. 配置 API Keys
+### 第一步：下载 APK
 
-```bash
-# 复制模板
-cp local.properties.template local.properties
-```
+前往本项目的 [GitHub Releases](https://github.com/lunanightshade-z/rayclaw/releases) 页面，下载最新版本的 `app-release.apk`。
 
-编辑 `local.properties`（此文件已在 `.gitignore` 中，不会被提交）：
-
-```properties
-# Android SDK 路径（根据本机修改）
-sdk.dir=/Users/yourname/Library/Android/sdk      # macOS
-# sdk.dir=C:\Users\yourname\AppData\Local\Android\Sdk  # Windows
-
-# 阿里云 DashScope — 语音识别
-DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# OpenClaw 智能体网关
-OPENCLAW_BASE_URL=https://your-openclaw-gateway.example.com
-OPENCLAW_GATEWAY_TOKEN=your_gateway_token_here
-OPENCLAW_AGENT_ID=main
-```
-
-### 3. 构建并安装到眼镜
-
-**方式 A：构建脚本（Windows PowerShell）**
-
-```powershell
-.\build_and_install.ps1
-```
-
-脚本自动定位 `adb`（优先读取 `ANDROID_HOME` / `ANDROID_SDK_ROOT` 环境变量，回退到 PATH），不含任何硬编码路径。
-
-**方式 B：手动命令**
-
-```bash
-./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-### 4. 运行时配置（可选，无需重编译）
-
-如果你想在不重新构建的情况下更换 API Key 或切换服务器，使用运行时配置：
-
-```bash
-# 1. 基于模板创建配置文件
-cp rayclaw.conf.template rayclaw.conf
-
-# 2. 填入你的参数，然后推送到眼镜
-adb push rayclaw.conf /sdcard/Android/data/com.rayclaw.app/files/rayclaw.conf
-
-# 3. 重启应用即生效（无需重新安装）
-adb shell am force-stop com.rayclaw.app
-adb shell am start -n com.rayclaw.app/.AgentChatActivity
-```
-
-`rayclaw.conf` 已在 `.gitignore` 中，不会入库。
-
-### 5. 连接并使用
-
-- 确保眼镜与手机/电脑处于同一 Wi-Fi，或通过 USB 连接
-- 在眼镜 Launcher 中找到 **rayclaw** 应用并打开
-- **单击镜腿** 开始说话，AI 回复将实时渲染在眼前
-
----
-
-## 从应用商店安装后配置 API Key
-
-从应用商店下载安装后，APK 中没有内置任何 API Key，需要通过 USB 将配置文件推送到眼镜才能使用。整个过程无需任何开发经验，只需安装一个命令行工具 ADB。
-
-### 第一步：在眼镜上开启开发者模式
+### 第二步：在眼镜上开启开发者模式
 
 RayNeo X3 Pro 的开发者模式开启方式与普通 Android 手机不同：
 
-1. 在眼镜上打开 **设置（Settings）**
-2. 在设置界面中，**用右镜腿触控板向左滑动 10 次**（即所谓的"撞墙 10 次"）
-3. 完成后，ADB 开发者模式即被激活
+1. 在眼镜上打开 设置（Settings）
+2. 在设置界面中，用右镜腿触控板向左滑动 10 次
+3. 完成后开发者模式即被激活
 
-> **提示：** 再次执行相同操作（向左滑动 10 次）会关闭开发者模式。请确保使用的是 USB-C **数据线**而非纯充电线，随眼镜附带的线缆即可。
+> 再次执行相同操作（向左滑动 10 次）会关闭开发者模式。请确保使用 USB-C 数据线而非纯充电线。
 
-### 第二步：在电脑上安装 ADB
+### 第三步：在电脑上安装 ADB
 
-ADB（Android Debug Bridge）是 Android 官方工具，**无需安装完整 Android Studio**。
+ADB（Android Debug Bridge）是 Android 官方命令行工具，无需安装完整 Android Studio。
+
+<details>
+<summary><b>Windows</b></summary>
+
+从 [Android 官方下载页](https://developer.android.com/tools/releases/platform-tools) 下载 Windows 版 Platform Tools 压缩包，解压到任意目录（如 `C:\platform-tools`）。
+
+解压后在该目录中打开 PowerShell，即可运行 `.\adb` 命令；或将该目录添加到系统环境变量 `PATH` 后全局使用 `adb`。
+
+</details>
 
 <details>
 <summary><b>macOS</b></summary>
 
 ```bash
-# 使用 Homebrew 安装（推荐）
 brew install android-platform-tools
 ```
-
-或从 [Android 官方下载页](https://developer.android.com/tools/releases/platform-tools)下载 Platform Tools 压缩包，解压后将目录加入 `PATH`。
-
-</details>
-
-<details>
-<summary><b>Windows</b></summary>
-
-从 [Android 官方下载页](https://developer.android.com/tools/releases/platform-tools)下载 **Windows 版 Platform Tools** 压缩包，解压到任意目录（如 `C:\platform-tools`）。
-
-**使用方法：** 解压后在该目录中打开 PowerShell，直接运行 `.\adb` 命令；或将该目录添加到系统环境变量 `PATH` 后全局使用 `adb`。
 
 </details>
 
@@ -323,102 +242,180 @@ sudo dnf install android-tools
 
 </details>
 
-### 第三步：连接眼镜
-
-使用 USB-C 数据线将眼镜连接到电脑，然后验证连接：
+### 第四步：连接眼镜并安装 APK
 
 ```bash
+# 验证连接（应出现设备序列号，状态为 device）
 adb devices
-```
 
-输出中应出现眼镜的序列号（状态为 `device`）：
-
-```
-List of devices attached
-XXXXXXXXXXXXXXXX    device
+# 安装 APK
+adb install app-release.apk
 ```
 
 <details>
-<summary><b>⚠️ 连接故障排查</b></summary>
+<summary><b>连接故障排查</b></summary>
 
 | 问题 | 解决方案 |
 |------|----------|
-| 列表为空（`device not found`） | 确认使用的是数据线而非充电线；检查眼镜开发者模式是否已开启；尝试重启眼镜 |
-| 状态显示 `unauthorized` | 检查眼镜屏幕上是否有待确认的"允许 USB 调试"弹窗 |
-| **Windows 11 无法识别设备** | 已知驱动兼容问题——需使用 [Zadig](https://zadig.akeo.ie/) 工具为眼镜安装 WinUSB 驱动：打开 Zadig → 选择 RayNeo 设备 → 安装 WinUSB 驱动 → 重试 `adb devices` |
+| 列表为空 | 确认使用数据线而非充电线；检查开发者模式是否已开启；重启眼镜 |
+| 状态 `unauthorized` | 检查眼镜屏幕是否有待确认的"允许 USB 调试"弹窗 |
+| Windows 11 无法识别 | 已知驱动兼容问题——使用 [Zadig](https://zadig.akeo.ie/) 为眼镜安装 WinUSB 驱动后重试 |
 
 </details>
 
-### 第四步：创建配置文件
+### 第五步：创建并推送配置文件
 
-在电脑上新建一个名为 `rayclaw.conf` 的文本文件，填入以下内容：
+在电脑上新建 `rayclaw.conf` 文件：
 
 ```properties
-# 阿里云 DashScope — 语音识别 API Key
+# 阿里云 DashScope — 语音识别
 DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # OpenClaw 智能体网关
-OPENCLAW_BASE_URL=http://192.168.1.x:18789
+OPENCLAW_BASE_URL=http://your-server-address:18789
 OPENCLAW_GATEWAY_TOKEN=your_gateway_token_here
 OPENCLAW_AGENT_ID=main
 ```
 
-将各字段替换为你的实际值：
-
 | 字段 | 说明 |
 |------|------|
 | `DASHSCOPE_API_KEY` | 阿里云 DashScope 控制台获取 |
-| `OPENCLAW_BASE_URL` | OpenClaw 网关所在机器的局域网 IP 和端口 |
+| `OPENCLAW_BASE_URL` | OpenClaw 网关地址（局域网 IP 或公网域名均可） |
 | `OPENCLAW_GATEWAY_TOKEN` | 部署 OpenClaw 时设置的 Gateway Token |
 | `OPENCLAW_AGENT_ID` | 保持默认值 `main` 即可 |
 
-> **提示：** 眼镜和 OpenClaw 服务器须处于同一局域网。你可以在服务器上运行 `ifconfig`（macOS/Linux）或 `ipconfig`（Windows）查询局域网 IP。
+> 网络说明： 眼镜通过蓝牙连接手机共享网络，只要手机能访问 OpenClaw 服务器即可（局域网或公网均可）。
 
-### 第五步：推送配置并重启应用
+推送配置到眼镜：
 
 ```bash
-# 推送配置文件到眼镜
 adb push rayclaw.conf /sdcard/Android/data/com.rayclaw.app/files/rayclaw.conf
+```
 
-# 重启应用使配置生效
+### 第六步：启动应用
+
+```bash
 adb shell am force-stop com.rayclaw.app
 adb shell am start -n com.rayclaw.app/.AgentChatActivity
 ```
 
-应用重启后即加载新配置。日志只记录已加载的 Key 名称，不记录值，密钥不会泄露到 logcat。
+或直接在眼镜 Launcher 中找到 rayclaw 应用打开。单击镜腿开始说话，AI 回复将实时渲染在眼前。
 
 ### 更新配置
 
-如需更换 API Key 或切换服务器，直接修改本地的 `rayclaw.conf` 文件，重新执行第五步中的三条命令即可，无需重新安装应用。
+如需更换 API Key 或切换服务器，修改本地的 `rayclaw.conf`，重新执行第五、六步即可，无需重新安装。
+
+---
+
+## 从源码构建（开发者）
+
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/lunanightshade-z/rayclaw.git
+cd rayclaw
+```
+
+### 2. 配置 API Keys
+
+```bash
+cp local.properties.template local.properties
+```
+
+编辑 `local.properties`（已在 `.gitignore` 中，不会被提交）：
+
+```properties
+# Android SDK 路径
+sdk.dir=/Users/yourname/Library/Android/sdk      # macOS
+# sdk.dir=C:\Users\yourname\AppData\Local\Android\Sdk  # Windows
+
+# 阿里云 DashScope — 语音识别
+DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# OpenClaw 智能体网关
+OPENCLAW_BASE_URL=http://your-server-address:18789
+OPENCLAW_GATEWAY_TOKEN=your_gateway_token_here
+OPENCLAW_AGENT_ID=main
+```
+
+### 3. 构建并安装
+
+方式 A：构建脚本（Windows PowerShell）
+
+```powershell
+.\build_and_install.ps1
+```
+
+脚本自动定位 `adb`（优先读取 `ANDROID_HOME` / `ANDROID_SDK_ROOT`，回退到 PATH）。
+
+方式 B：手动命令
+
+```bash
+# Debug 版本
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+# Release 版本（需在 local.properties 配置签名信息）
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+### 4. 运行时配置（可选）
+
+无需重新编译即可更换 API Key 或切换服务器：
+
+```bash
+cp rayclaw.conf.template rayclaw.conf
+# 编辑 rayclaw.conf 填入实际参数
+adb push rayclaw.conf /sdcard/Android/data/com.rayclaw.app/files/rayclaw.conf
+adb shell am force-stop com.rayclaw.app
+adb shell am start -n com.rayclaw.app/.AgentChatActivity
+```
 
 ---
 
 ## 配置详解
 
+### 配置优先级（从高到低）
+
+```
+rayclaw.conf（运行时 adb push）
+        ↓
+AppSettings（眼镜内设置页修改）
+        ↓
+BuildConfig（local.properties 编译时注入）
+        ↓
+代码默认值
+```
+
 ### local.properties（编译时注入）
 
 | Key | 说明 | 必填 |
 |-----|------|------|
-| `sdk.dir` | Android SDK 本地路径 | ✅ |
-| `DASHSCOPE_API_KEY` | 阿里云 DashScope API Key | ✅ |
-| `OPENCLAW_BASE_URL` | OpenClaw 网关基础地址 | ✅ |
-| `OPENCLAW_GATEWAY_TOKEN` | 网关鉴权 Token | ✅ |
-| `OPENCLAW_AGENT_ID` | Agent ID（默认 `main`） | 可选 |
-
-这些值通过 `BuildConfig` 字段注入，编译时固化在 APK 中。
+| `sdk.dir` | Android SDK 本地路径 | 是 |
+| `DASHSCOPE_API_KEY` | 阿里云 DashScope API Key | 是 |
+| `OPENCLAW_BASE_URL` | OpenClaw 网关地址 | 是 |
+| `OPENCLAW_GATEWAY_TOKEN` | 网关鉴权 Token | 是 |
+| `OPENCLAW_AGENT_ID` | Agent ID（默认 `main`） | 否 |
+| `KEYSTORE_FILE` | Release 签名密钥库文件名 | Release 构建时 |
+| `KEYSTORE_PASSWORD` | 密钥库密码 | Release 构建时 |
+| `KEY_ALIAS` | 密钥别名 | Release 构建时 |
+| `KEY_PASSWORD` | 密钥密码 | Release 构建时 |
 
 ### rayclaw.conf（运行时覆盖）
 
-格式与 `local.properties` 相同的 Java Properties 文件，支持的 Key 与上表一致。运行时优先级高于 BuildConfig，适合频繁切换测试环境，无需重新编译。
+格式为 Java Properties，支持的 Key：
 
 ```properties
-# rayclaw.conf 示例（adb push 到设备后生效）
+DASHSCOPE_API_KEY=sk-xxx
 OPENCLAW_BASE_URL=http://192.168.1.100:18789
 OPENCLAW_GATEWAY_TOKEN=new_token
-DASHSCOPE_API_KEY=sk-new_key
+OPENCLAW_AGENT_ID=main
+ASR_LANGUAGE=zh          # zh/en/ja/ko/fr/de/es/ru
+ASR_LISTEN_MODE=continuous  # continuous（持续监听）/ oneshot（单次识别）
 ```
 
-日志安全：`RuntimeConfig` 只记录已加载的 key 名称，**不记录 key 值**，防止 logcat 泄露密钥。
+运行时配置优先级高于 BuildConfig，适合切换测试环境。日志安全：`RuntimeConfig` 只记录已加载的 key 名称，不记录 key 值。
 
 ---
 
@@ -427,46 +424,39 @@ DASHSCOPE_API_KEY=sk-new_key
 ```
 rayclaw/
 ├── app/
-│   ├── build.gradle.kts                    构建配置：API Key 注入、依赖声明
+│   ├── build.gradle.kts                    构建配置、API Key 注入、签名
 │   ├── libs/
-│   │   └── MercuryAndroidSDK-*.aar         RayNeo Mercury SDK（本地依赖）
-│   └── src/
-│       └── main/
-│           ├── AndroidManifest.xml
-│           ├── assets/
-│           │   └── markdown.css            AI 回复 WebView 样式
-│           ├── java/com/rayclaw/app/
-│           │   ├── AgentChatActivity.kt    主 Activity（手势 + UI 状态机）
-│           │   ├── MyApplication.kt        Application：SDK 初始化
-│           │   ├── RuntimeConfig.kt        运行时配置覆盖系统
-│           │   ├── agent/
-│           │   │   ├── AgentConfig.kt      OpenClaw 网关参数
-│           │   │   └── OpenClawClient.kt   SSE 流式客户端
-│           │   ├── asr/
-│           │   │   ├── AppLanguage.kt      语言枚举（8 种）
-│           │   │   ├── AsrConfig.kt        ASR 参数配置
-│           │   │   └── SpeechEngine.kt     WebSocket 语音引擎
-│           │   ├── translation/
-│           │   │   ├── TranslationConfig.kt    各翻译商 Key 配置
-│           │   │   ├── TranslationManager.kt   工厂选择器
-│           │   │   ├── TranslationProvider.kt  接口定义
-│           │   │   └── providers/              6 种翻译实现
-│           │   └── ui/
-│           │       └── MarkdownRenderer.kt     Markdown → HTML
-│           └── res/
-│               ├── layout/
-│               │   └── activity_agent_chat.xml 主界面布局
-│               └── values/
-│                   ├── strings.xml
-│                   ├── colors.xml
-│                   └── themes.xml              Theme.RayClaw
+│   │   └── MercuryAndroidSDK-*.aar         RayNeo Mercury SDK（本地 AAR）
+│   └── src/main/
+│       ├── AndroidManifest.xml             权限（录音、网络）+ Activity 注册
+│       ├── assets/
+│       │   └── markdown.css                AI 回复 WebView 样式
+│       └── java/com/rayclaw/app/
+│           ├── AgentChatActivity.kt        主界面：手势 + 语音 + 流式对话 + 渲染
+│           ├── SettingsActivity.kt         眼镜内设置：语言 / 监听模式 / 重置
+│           ├── MyApplication.kt            Application：Mercury SDK 初始化
+│           ├── AppSettings.kt              SharedPreferences 持久化
+│           ├── RuntimeConfig.kt            运行时配置覆盖系统
+│           ├── agent/
+│           │   ├── AgentConfig.kt          OpenClaw 网关参数（优先级链）
+│           │   └── OpenClawClient.kt       HTTP SSE 流式客户端
+│           ├── asr/
+│           │   ├── SpeechEngine.kt         WebSocket 全双工语音引擎
+│           │   ├── AsrConfig.kt            ASR 参数：16kHz / 3200B 帧 / 模型
+│           │   └── AppLanguage.kt          8 种语言枚举
+│           ├── translation/
+│           │   ├── TranslationManager.kt   工厂（策略模式）：按配置选择引擎
+│           │   ├── TranslationConfig.kt    各翻译商 Key 配置
+│           │   ├── TranslationProvider.kt  翻译接口
+│           │   └── providers/              MyMemory·百度·有道·腾讯·DeepL·Azure
+│           └── ui/
+│               └── MarkdownRenderer.kt     CommonMark + GFM 表格 → HTML
 │
 ├── rayneo-x3-ar-dev-guide/                 AR 开发完整指引（见下方）
-├── local.properties.template               API Key 配置模板（需复制为 local.properties）
-├── local.properties.example                配置示例（另一格式参考）
+├── local.properties.template               编译时 API Key 配置模板
 ├── rayclaw.conf.template                   运行时配置模板
-├── test_openclaw_gateway.py                OpenClaw 网关连通测试脚本（CLI 对话客户端）
-├── build_and_install.ps1                   一键构建安装脚本（Windows PowerShell）
+├── test_openclaw_gateway.py                OpenClaw 网关连通性测试脚本
+├── build_and_install.ps1                   一键构建安装脚本（PowerShell）
 └── LICENSE                                 MIT License
 ```
 
@@ -474,17 +464,17 @@ rayclaw/
 
 ## 开发指引：rayneo-x3-ar-dev-guide
 
-本仓库内置完整的 RayNeo X3 AR 应用开发文档，记录了从零搭建 AR 应用的全部经验和踩坑记录。
+本仓库内置完整的 RayNeo X3 AR 应用开发文档，记录了从零搭建 AR 应用的全部经验。
 
 | 章节 | 内容 |
 |------|------|
 | `01-introduction/` | X3 硬件特性、AR 开发与普通 Android 开发的核心差异 |
 | `02-environment-setup/` | 开发环境配置、项目搭建、Mercury SDK 接入、API Key 管理 |
-| `03-core-concepts/` | 双屏渲染（Fusion Vision）原理、镜腿输入事件、焦点管理、3D 视差效果 |
-| `04-ui-components/` | BaseMirrorActivity / Fragment / View 用法、FToast / FDialog、RecyclerView 手势导航 |
-| `05-hardware-apis/` | Camera2 双眼预览、IMU 头部姿态、设备状态监控、语音识别踩坑 |
+| `03-core-concepts/` | 双屏渲染（Fusion Vision）原理、镜腿输入事件、焦点管理、3D 视差 |
+| `04-ui-components/` | BaseMirrorActivity / Fragment / View、FToast / FDialog、RecyclerView 手势导航 |
+| `05-hardware-apis/` | Camera2 双眼预览、IMU 头部姿态、设备状态监控、语音识别 |
 | `06-recipes/` | 5 个完整 Demo：Hello World · 菜单导航 · 滚动列表 · 视频播放 · Camera AR 叠层 |
-| `07-debugging/` | ADB 常用命令、单眼投屏调试技巧、性能分析 |
+| `07-debugging/` | ADB 常用命令、单眼投屏调试、性能分析 |
 | `08-faq.md` | 高频问题汇总 |
 
 入口：[rayneo-x3-ar-dev-guide/README.md](rayneo-x3-ar-dev-guide/README.md)
@@ -506,8 +496,8 @@ rayclaw/
 ## 网络安全说明
 
 `AndroidManifest.xml` 中启用了 `usesCleartextTraffic="true"`。
-原因：OpenClaw 网关 URL 由用户在运行时自行配置（`rayclaw.conf`），可能指向本地网络或内网的 HTTP 服务器。
-**若你的部署环境全程使用 HTTPS/WSS，可安全移除该标志。**
+原因：OpenClaw 网关地址由用户在运行时自行配置，可能指向本地网络的 HTTP 服务。
+若你的部署环境全程使用 HTTPS，可安全移除该标志。
 
 ---
 
