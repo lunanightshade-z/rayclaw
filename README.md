@@ -12,7 +12,9 @@
 - [手势操作](#手势操作)
 - [技术架构](#技术架构)
 - [环境要求](#环境要求)
+- [OpenClaw 智能体网关部署](#openclaw-智能体网关部署)
 - [快速开始](#快速开始)
+- [从应用商店安装后配置 API Key](#从应用商店安装后配置-api-key)
 - [配置详解](#配置详解)
 - [项目结构](#项目结构)
 - [开发指引](#开发指引rayneo-x3-ar-dev-guide)
@@ -104,7 +106,93 @@ com.rayclaw.app
 | 服务 | 用途 | 申请地址 |
 |------|------|----------|
 | 阿里云 DashScope | Paraformer 实时语音识别 | https://dashscope.console.aliyun.com/ |
-| OpenClaw 智能体网关 | LLM 流式对话 | 自部署或联系提供方 |
+| OpenClaw 智能体网关 | LLM 流式对话 | 本地部署（见下方） |
+
+---
+
+## OpenClaw 智能体网关部署
+
+RayClaw 依赖 OpenClaw 智能体网关提供 LLM 流式对话能力。本部分指引如何在本地或服务器部署 OpenClaw。
+
+### 前置要求
+
+- **Node.js** 16.0 或更高版本
+- **npm** 8.0 或更高版本
+- 能连接到互联网（下载 OpenClaw 包）
+
+### 安装 OpenClaw
+
+#### 1. 卸载旧版本（如有）
+
+```bash
+npm uninstall -g openclaw
+```
+
+#### 2. 安装指定版本
+
+由于最新版本在某些模型的 function call 上存在问题，建议安装以下稳定版本：
+
+```bash
+npm install -g openclaw@2026.3.2
+```
+
+#### 3. 初始化配置
+
+运行交互式引导程序，同时注册 OpenClaw 为后台服务：
+
+```bash
+openclaw onboard --install-daemon
+```
+
+### 配置注意事项
+
+在初始化过程中，**请注意以下选项不能使用默认值**：
+
+| 配置项 | 推荐值 | 说明 |
+|------|--------|------|
+| **Gateway bind** | `LAN` 或 `tailnet` | 选择 LAN 模式支持局域网访问，选择 tailnet 需额外配置 Tailscale |
+| **Gateway auth** | `Token` | 使用 Token 认证保护 API 安全 |
+| **Gateway token** | 自生成强密钥 | 建议使用随机数生成器：`openssl rand -hex 32` |
+
+其他配置项（如模型、API 提供商等）根据个人需求选择。
+
+### 修改配置文件
+
+部署完成后，需要修改配置文件以支持 HTTP 端点：
+
+**配置文件位置：**
+```
+~/.openclaw/openclaw.json
+```
+
+**修改步骤：**
+
+1. 打开上述配置文件
+2. 定位到 `gateway.bind` 配置项，确保设置为 `lan` 或 `tailnet`
+3. 在 `tailscale` 或相关部分下方，新增以下 HTTP 端点配置：
+
+```json
+"http": {
+  "endpoints": {
+    "chatCompletions": { "enabled": true },
+    "responses": { "enabled": true }
+  }
+}
+```
+
+### 验证部署
+
+完成后，启动或重启 OpenClaw 服务：
+
+```bash
+# 重启守护进程
+openclaw restart
+
+# 查看服务状态
+openclaw status
+```
+
+在眼镜应用中配置 OpenClaw 的网关地址（如 `http://192.168.1.x:port`）和 Token，即可连接使用。
 
 ---
 
@@ -180,6 +268,128 @@ adb shell am start -n com.rayclaw.app/.AgentChatActivity
 - 确保眼镜与手机/电脑处于同一 Wi-Fi，或通过 USB 连接
 - 在眼镜 Launcher 中找到 **rayclaw** 应用并打开
 - **单击镜腿** 开始说话，AI 回复将实时渲染在眼前
+
+---
+
+## 从应用商店安装后配置 API Key
+
+从应用商店下载安装后，APK 中没有内置任何 API Key，需要通过 USB 将配置文件推送到眼镜才能使用。整个过程无需任何开发经验，只需安装一个命令行工具 ADB。
+
+### 第一步：在眼镜上开启开发者模式
+
+RayNeo X3 Pro 的开发者模式开启方式与普通 Android 手机不同：
+
+1. 在眼镜上打开 **设置（Settings）**
+2. 在设置界面中，**用右镜腿触控板向左滑动 10 次**（即所谓的"撞墙 10 次"）
+3. 完成后，ADB 开发者模式即被激活
+
+> **提示：** 再次执行相同操作（向左滑动 10 次）会关闭开发者模式。请确保使用的是 USB-C **数据线**而非纯充电线，随眼镜附带的线缆即可。
+
+### 第二步：在电脑上安装 ADB
+
+ADB（Android Debug Bridge）是 Android 官方工具，**无需安装完整 Android Studio**。
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+# 使用 Homebrew 安装（推荐）
+brew install android-platform-tools
+```
+
+或从 [Android 官方下载页](https://developer.android.com/tools/releases/platform-tools)下载 Platform Tools 压缩包，解压后将目录加入 `PATH`。
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+从 [Android 官方下载页](https://developer.android.com/tools/releases/platform-tools)下载 **Windows 版 Platform Tools** 压缩包，解压到任意目录（如 `C:\platform-tools`）。
+
+**使用方法：** 解压后在该目录中打开 PowerShell，直接运行 `.\adb` 命令；或将该目录添加到系统环境变量 `PATH` 后全局使用 `adb`。
+
+</details>
+
+<details>
+<summary><b>Linux</b></summary>
+
+```bash
+# Ubuntu / Debian
+sudo apt install android-tools-adb
+
+# Fedora / RHEL
+sudo dnf install android-tools
+```
+
+</details>
+
+### 第三步：连接眼镜
+
+使用 USB-C 数据线将眼镜连接到电脑，然后验证连接：
+
+```bash
+adb devices
+```
+
+输出中应出现眼镜的序列号（状态为 `device`）：
+
+```
+List of devices attached
+XXXXXXXXXXXXXXXX    device
+```
+
+<details>
+<summary><b>⚠️ 连接故障排查</b></summary>
+
+| 问题 | 解决方案 |
+|------|----------|
+| 列表为空（`device not found`） | 确认使用的是数据线而非充电线；检查眼镜开发者模式是否已开启；尝试重启眼镜 |
+| 状态显示 `unauthorized` | 检查眼镜屏幕上是否有待确认的"允许 USB 调试"弹窗 |
+| **Windows 11 无法识别设备** | 已知驱动兼容问题——需使用 [Zadig](https://zadig.akeo.ie/) 工具为眼镜安装 WinUSB 驱动：打开 Zadig → 选择 RayNeo 设备 → 安装 WinUSB 驱动 → 重试 `adb devices` |
+
+</details>
+
+### 第四步：创建配置文件
+
+在电脑上新建一个名为 `rayclaw.conf` 的文本文件，填入以下内容：
+
+```properties
+# 阿里云 DashScope — 语音识别 API Key
+DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# OpenClaw 智能体网关
+OPENCLAW_BASE_URL=http://192.168.1.x:18789
+OPENCLAW_GATEWAY_TOKEN=your_gateway_token_here
+OPENCLAW_AGENT_ID=main
+```
+
+将各字段替换为你的实际值：
+
+| 字段 | 说明 |
+|------|------|
+| `DASHSCOPE_API_KEY` | 阿里云 DashScope 控制台获取 |
+| `OPENCLAW_BASE_URL` | OpenClaw 网关所在机器的局域网 IP 和端口 |
+| `OPENCLAW_GATEWAY_TOKEN` | 部署 OpenClaw 时设置的 Gateway Token |
+| `OPENCLAW_AGENT_ID` | 保持默认值 `main` 即可 |
+
+> **提示：** 眼镜和 OpenClaw 服务器须处于同一局域网。你可以在服务器上运行 `ifconfig`（macOS/Linux）或 `ipconfig`（Windows）查询局域网 IP。
+
+### 第五步：推送配置并重启应用
+
+```bash
+# 推送配置文件到眼镜
+adb push rayclaw.conf /sdcard/Android/data/com.rayclaw.app/files/rayclaw.conf
+
+# 重启应用使配置生效
+adb shell am force-stop com.rayclaw.app
+adb shell am start -n com.rayclaw.app/.AgentChatActivity
+```
+
+应用重启后即加载新配置。日志只记录已加载的 Key 名称，不记录值，密钥不会泄露到 logcat。
+
+### 更新配置
+
+如需更换 API Key 或切换服务器，直接修改本地的 `rayclaw.conf` 文件，重新执行第五步中的三条命令即可，无需重新安装应用。
 
 ---
 

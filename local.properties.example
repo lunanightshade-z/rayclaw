@@ -19,3 +19,26 @@ sdk.dir=/path/to/your/Android/Sdk
 # DashScope 语音识别 API Key（必填）
 # 申请地址：https://dashscope.console.aliyun.com/ → API-KEY 管理
 DASHSCOPE_API_KEY=
+
+# ── OpenClaw Agent Gateway ────────────────────────────────────────────────────
+# Base URL of your OpenClaw server (include port, no trailing slash)
+OPENCLAW_BASE_URL=http://192.168.x.x:18789
+
+# Gateway authentication token
+OPENCLAW_GATEWAY_TOKEN=your-gateway-token-here
+
+# Agent ID to route requests to (default: main)
+OPENCLAW_AGENT_ID=main
+
+# ── Release Signing ──────────────────────────────────────────────────────────
+# Keystore 文件路径（相对于项目根目录）
+KEYSTORE_FILE=rayclaw-release.keystore
+
+# Keystore 密码
+KEYSTORE_PASSWORD=your_keystore_password
+
+# Key 别名
+KEY_ALIAS=rayclaw
+
+# Key 密码
+KEY_PASSWORD=your_key_password
