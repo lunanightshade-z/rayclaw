@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-#  local.properties.template — Compile-time configuration for rayclaw
+#  local.properties.template — Compile-time configuration for OpenClaw
 #
 #  HOW TO USE（源码开发者）
 #  ──────────
@@ -16,13 +16,13 @@
 #  • This file contains secrets — never commit it to version control.
 #    (.gitignore already excludes local.properties)
 #  • Keys are baked into the APK at build time (BuildConfig).
-#    If you later need to change keys WITHOUT rebuilding, use rayclaw.conf
-#    instead (see rayclaw.conf.template).
+#    If you later need to change keys WITHOUT rebuilding, use openclaw.conf
+#    instead (see openclaw.conf.template).
 #
 #  PRIORITY（运行时覆盖 > 编译时注入）
 #  ──────────
-#  rayclaw.conf (runtime, adb push) > local.properties (compile-time, baked in)
-#  Any key present in rayclaw.conf will override the value compiled in here.
+#  openclaw.conf (runtime, adb push) > local.properties (compile-time, baked in)
+#  Any key present in openclaw.conf will override the value compiled in here.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-# Build and install RayClaw on connected RayNeo X3 device.
+# Build and install OpenClaw on connected RayNeo X3 device.
 # Requires: ADB in PATH or ANDROID_HOME / ANDROID_SDK_ROOT env var set.
 
 $ErrorActionPreference = "Stop"

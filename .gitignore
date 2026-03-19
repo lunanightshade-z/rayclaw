@@ -16,8 +16,8 @@ app/build
 .cxx
 local.properties
 # Runtime config overlay — contains secrets, never commit
-rayclaw.conf
+openclaw.conf
 # Local development notes — not part of the public repo
 docs/
-rayclaw-release.keystore
+openclaw-release.keystore
 skill

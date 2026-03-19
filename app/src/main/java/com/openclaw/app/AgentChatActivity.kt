@@ -1,0 +1,418 @@
+﻿package com.openclaw.app
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.webkit.WebSettings
+import android.webkit.WebView
+import androidx.annotation.ColorInt
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.openclaw.app.agent.AgentConfig
+import com.openclaw.app.agent.OpenClawClient
+import com.openclaw.app.asr.AppLanguage
+import com.openclaw.app.asr.AsrConfig
+import com.openclaw.app.asr.ListenMode
+import com.openclaw.app.asr.SpeechEngine
+import com.openclaw.app.databinding.ActivityAgentChatBinding
+import com.openclaw.app.ui.MarkdownRenderer
+import com.ffalcon.mercury.android.sdk.touch.TempleAction
+import com.ffalcon.mercury.android.sdk.ui.activity.BaseMirrorActivity
+import com.ffalcon.mercury.android.sdk.ui.toast.FToast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+class AgentChatActivity : BaseMirrorActivity<ActivityAgentChatBinding>() {
+
+    private var speechEngine: SpeechEngine? = null
+    private var openClawClient: OpenClawClient? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var isListening = false
+    private var isProcessing = false
+
+    /**
+     * Generation counter — bumped on every [resetConversation].
+     * All streaming callbacks capture their generation at launch and silently
+     * discard themselves if [generation] has moved on, preventing stale updates.
+     */
+    private var generation = 0
+
+    private var sessionTurnCount = 0
+
+    private var latestResponseMarkdown = ""
+    private var responseScrollToBottom = true
+    private val responseRenderRunnable = Runnable {
+        renderResponseMarkdownNow(scrollToBottom = responseScrollToBottom)
+    }
+
+    // ─────────────────────── Lifecycle ───────────────────────
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        ensureResponseWebViewsConfigured()
+        initOpenClawClient()
+        renderIdleUI()
+        if (hasMicPermission()) {
+            initSpeechEngine()
+        } else {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC
+            )
+        }
+        collectTempleActions()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh the language badge whenever we return from SettingsActivity.
+        mBindingPair.updateView {
+            tvLanguage.text = "语音: ${currentLanguageDisplayName()}"
+        }
+        // Execute a conversation reset requested from SettingsActivity.
+        if (AppSettings.pendingReset) {
+            AppSettings.pendingReset = false
+            resetConversation()
+        }
+    }
+
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(responseRenderRunnable)
+        speechEngine?.release()
+        openClawClient?.release()
+        super.onDestroy()
+    }
+
+    // ─────────────────────── Init ───────────────────────
+
+    private fun initOpenClawClient() {
+        openClawClient = OpenClawClient(
+            baseUrl        = AgentConfig.BASE_URL,
+            agentId        = AgentConfig.AGENT_ID,
+            token          = AgentConfig.GATEWAY_TOKEN,
+            user           = AgentConfig.USER_ID,
+            timeoutSeconds = AgentConfig.TIMEOUT_SECONDS
+        )
+    }
+
+    private fun initSpeechEngine() {
+        speechEngine = SpeechEngine(
+            context   = this,
+            onPartial = { text -> setSpeechInput("$text…", isPartial = true) },
+            onFinal   = { text ->
+                setSpeechInput(text, isPartial = false)
+                // Oneshot mode: stop listening as soon as a complete utterance arrives.
+                // The user must tap again for the next query.
+                if (AsrConfig.LISTEN_MODE == ListenMode.ONESHOT && isListening) {
+                    isListening = false
+                    stopListening()
+                    setStatus("已暂停，单击继续", COLOR_IDLE)
+                }
+                askAgent(text)
+            },
+            onError   = { msg -> setStatus("ASR 错误: $msg", COLOR_ERROR); isListening = false }
+        )
+    }
+
+    // ─────────────────────── UI state ───────────────────────
+
+    private fun renderIdleUI() {
+        mBindingPair.updateView {
+            tvStatus.text = "单击镜腿开始对话"
+            tvStatus.setTextColor(COLOR_IDLE)
+            tvLanguage.text = "语音: ${currentLanguageDisplayName()}"
+            tvProvider.text = "OpenClaw"
+            tvUserInput.text = ""
+            tvUserInput.setTextColor(COLOR_INPUT_EMPTY)
+            tvSessions.text = ""
+            tvSessions.setTextColor(COLOR_SESSION_IDLE)
+        }
+        setResponseMarkdown("", immediate = true, scrollToBottom = false)
+    }
+
+    private fun setStatus(text: String, @ColorInt color: Int = COLOR_IDLE) {
+        mBindingPair.updateView {
+            tvStatus.text = text
+            tvStatus.setTextColor(color)
+        }
+    }
+
+    private fun setSpeechInput(text: String, isPartial: Boolean = false) {
+        mBindingPair.updateView {
+            tvUserInput.text = text
+            tvUserInput.setTextColor(
+                when {
+                    text.isBlank() -> COLOR_INPUT_EMPTY
+                    isPartial      -> COLOR_INPUT_PARTIAL
+                    else           -> COLOR_INPUT_FINAL
+                }
+            )
+        }
+    }
+
+    private fun setResponseMarkdown(
+        markdown: String,
+        immediate: Boolean = false,
+        scrollToBottom: Boolean = true
+    ) {
+        latestResponseMarkdown = markdown
+        responseScrollToBottom = scrollToBottom
+        mainHandler.removeCallbacks(responseRenderRunnable)
+        if (immediate) mainHandler.post(responseRenderRunnable)
+        else mainHandler.postDelayed(responseRenderRunnable, STREAM_RENDER_THROTTLE_MS)
+    }
+
+    // ─────────────────────── Session sidebar ───────────────────────
+
+    private fun addSession() {
+        sessionTurnCount++
+        mBindingPair.updateView {
+            tvSessions.text = "●  当前对话\n    已交流 $sessionTurnCount 轮"
+            tvSessions.setTextColor(COLOR_SESSION_ACTIVE)
+        }
+    }
+
+    // ─────────────────────── WebView ───────────────────────
+
+    private fun ensureResponseWebViewsConfigured() {
+        mBindingPair.updateView { configureResponseWebView(wvResponse) }
+    }
+
+    private fun configureResponseWebView(webView: WebView) {
+        if (webView.tag == WEBVIEW_READY_TAG) return
+        webView.tag = WEBVIEW_READY_TAG
+        webView.setBackgroundColor(Color.TRANSPARENT)
+        webView.isVerticalScrollBarEnabled = false
+        webView.isHorizontalScrollBarEnabled = false
+        webView.setLayerType(WebView.LAYER_TYPE_HARDWARE, null)
+        webView.settings.apply {
+            javaScriptEnabled = false
+            domStorageEnabled = false
+            cacheMode = WebSettings.LOAD_NO_CACHE
+            builtInZoomControls = false
+            displayZoomControls = false
+            setSupportZoom(false)
+            loadsImagesAutomatically = true
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            defaultTextEncodingName = "utf-8"
+        }
+        webView.loadDataWithBaseURL(
+            ASSET_BASE_URL, MarkdownRenderer.buildHtmlDocument(""), "text/html", "utf-8", null
+        )
+    }
+
+    private fun renderResponseMarkdownNow(scrollToBottom: Boolean) {
+        val html = MarkdownRenderer.buildHtmlDocument(latestResponseMarkdown)
+        mBindingPair.updateView {
+            configureResponseWebView(wvResponse)
+            wvResponse.loadDataWithBaseURL(ASSET_BASE_URL, html, "text/html", "utf-8", null)
+            if (scrollToBottom) wvResponse.postDelayed({ wvResponse.scrollTo(0, Int.MAX_VALUE) }, 60L)
+            else wvResponse.scrollTo(0, 0)
+        }
+    }
+
+    /** Scroll AI response up (dy < 0) or down (dy > 0). */
+    private fun scrollResponseBy(dy: Int) {
+        mBindingPair.updateView { wvResponse.scrollBy(0, dy) }
+    }
+
+    // ─────────────────────── Agent interaction ───────────────────────
+
+    private fun askAgent(text: String) {
+        if (isProcessing) return
+        isProcessing = true
+        val myGen = generation
+        setStatus("AI 思考中…", COLOR_THINKING)
+        setResponseMarkdown("", immediate = true, scrollToBottom = false)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            openClawClient?.askStreaming(
+                text = text,
+                onDelta = { _, fullText ->
+                    if (generation != myGen) return@askStreaming
+                    mainHandler.post { setResponseMarkdown(fullText, immediate = false, scrollToBottom = true) }
+                },
+                onComplete = { finalText ->
+                    if (generation != myGen) return@askStreaming
+                    mainHandler.post {
+                        isProcessing = false
+                        setResponseMarkdown(finalText, immediate = true, scrollToBottom = true)
+                        addSession()
+                        if (isListening) setStatus("正在监听 ${currentLanguageDisplayName()}…", COLOR_LISTENING)
+                        else setStatus("已暂停，单击继续", COLOR_IDLE)
+                    }
+                },
+                onError = { error ->
+                    if (generation != myGen) return@askStreaming
+                    mainHandler.post {
+                        isProcessing = false
+                        setResponseMarkdown("⚠ $error", immediate = true, scrollToBottom = false)
+                        if (isListening) setStatus("正在监听 ${currentLanguageDisplayName()}…", COLOR_LISTENING)
+                        else setStatus("已暂停，单击继续", COLOR_IDLE)
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Full conversation reset (bound to TripleClick — avoids system long-press menu):
+     *  1. Bumps generation → silently drops all in-flight streaming callbacks.
+     *  2. Clears local UI immediately.
+     *  3. Sends "/reset" to the agent server to wipe multi-turn context.
+     */
+    private fun resetConversation() {
+        generation++
+        isProcessing = false
+        sessionTurnCount = 0
+
+        setSpeechInput("", isPartial = false)
+        setResponseMarkdown("", immediate = true, scrollToBottom = false)
+        mBindingPair.updateView {
+            tvSessions.text = ""
+            tvSessions.setTextColor(COLOR_SESSION_IDLE)
+        }
+
+        val (statusText, statusColor) = if (isListening) {
+            "正在监听 ${currentLanguageDisplayName()}…" to COLOR_LISTENING
+        } else {
+            "单击镜腿开始对话" to COLOR_IDLE
+        }
+        setStatus(statusText, statusColor)
+        FToast.show("正在重置对话…")
+
+        val myGen = generation
+        lifecycleScope.launch(Dispatchers.IO) {
+            openClawClient?.askStreaming(
+                text       = "/reset",
+                onDelta    = { _, _ -> },
+                onComplete = { _ ->
+                    if (generation == myGen) mainHandler.post { FToast.show("对话已重置") }
+                },
+                onError    = { _ -> /* local already cleared */ }
+            )
+        }
+    }
+
+    // ─────────────────────── Speech control ───────────────────────
+
+    private fun startListening() {
+        speechEngine?.start(listOf(AsrConfig.LANGUAGE))
+        setStatus("正在监听 ${currentLanguageDisplayName()}…", COLOR_LISTENING)
+    }
+
+    private fun stopListening() = speechEngine?.stop() ?: Unit
+
+    private fun toggleListening() {
+        if (speechEngine == null) { FToast.show("语音引擎未就绪"); return }
+        isListening = !isListening
+        if (isListening) {
+            startListening()
+            val modeHint = if (AsrConfig.LISTEN_MODE == ListenMode.ONESHOT) "（单次）" else ""
+            FToast.show("开始监听: ${currentLanguageDisplayName()} $modeHint".trim())
+        } else {
+            stopListening()
+            setStatus("已暂停，单击继续", COLOR_IDLE)
+        }
+    }
+
+    // ─────────────────────── Helpers ───────────────────────
+
+    /**
+     * Returns the human-readable display name for the currently configured ASR language.
+     * Falls back to the raw language code if the code is not in [AppLanguage].
+     */
+    private fun currentLanguageDisplayName(): String =
+        try { AppLanguage.fromCode(AsrConfig.LANGUAGE).displayName }
+        catch (_: Exception) { AsrConfig.LANGUAGE }
+
+    // ─────────────────────── Gesture map ───────────────────────
+
+    /**
+     * Temple gesture bindings:
+     *
+     *  Click          — toggle listening on/off
+     *  TripleClick    — open SettingsActivity (language / listen mode / reset)
+     *  DoubleClick    — exit app
+     *  SlideForward   — scroll AI response UP   (read previous)
+     *  SlideBackward  — scroll AI response DOWN  (read more)
+     *  SlideUpwards   — scroll AI response UP
+     *  SlideDownwards — scroll AI response DOWN
+     *
+     * NOTE: LongClick deliberately NOT used — it triggers the system settings panel
+     *       (WiFi, quick settings) before the app sees the event.
+     *       DoubleFingerClick not used — physically impractical on the narrow X3 temple pad.
+     *       "Reset conversation" lives inside SettingsActivity as the third row.
+     */
+    private fun collectTempleActions() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                templeActionViewModel.state.collect { action ->
+                    when (action) {
+                        is TempleAction.Click          -> toggleListening()
+                        is TempleAction.TripleClick    -> openSettings()
+                        is TempleAction.DoubleClick    -> { FToast.show("退出"); finish() }
+                        is TempleAction.SlideForward   -> scrollResponseBy(-SCROLL_STEP)
+                        is TempleAction.SlideBackward  -> scrollResponseBy(+SCROLL_STEP)
+                        is TempleAction.SlideUpwards   -> scrollResponseBy(-SCROLL_STEP)
+                        is TempleAction.SlideDownwards -> scrollResponseBy(+SCROLL_STEP)
+                        else -> Unit
+                    }
+                }
+            }
+        }
+    }
+
+    private fun openSettings() {
+        startActivity(Intent(this, SettingsActivity::class.java))
+    }
+
+    // ─────────────────────── Permissions ───────────────────────
+
+    private fun hasMicPermission() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_MIC &&
+            grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        ) initSpeechEngine()
+        else setStatus("需要麦克风权限才能使用", COLOR_ERROR)
+    }
+
+    companion object {
+        private const val REQ_MIC = 100
+        private const val STREAM_RENDER_THROTTLE_MS = 120L
+        private const val ASSET_BASE_URL = "file:///android_asset/"
+        private const val WEBVIEW_READY_TAG = "agent_response_webview_ready"
+
+        /** px scrolled per swipe gesture */
+        private const val SCROLL_STEP = 320
+
+        // ── Status bar colours ─────────────────────────────────────────────
+        @ColorInt private val COLOR_IDLE      = Color.parseColor("#484838")
+        @ColorInt private val COLOR_LISTENING = Color.parseColor("#00C896")
+        @ColorInt private val COLOR_THINKING  = Color.parseColor("#F5A30A")
+        @ColorInt private val COLOR_ERROR     = Color.parseColor("#FF5555")
+
+        // ── User speech input colours ──────────────────────────────────────
+        @ColorInt private val COLOR_INPUT_EMPTY   = Color.parseColor("#181816")
+        @ColorInt private val COLOR_INPUT_PARTIAL = Color.parseColor("#808060")
+        @ColorInt private val COLOR_INPUT_FINAL   = Color.parseColor("#EEE8DC")
+
+        // ── Sidebar session colours ────────────────────────────────────────
+        @ColorInt private val COLOR_SESSION_IDLE   = Color.parseColor("#303028")
+        @ColorInt private val COLOR_SESSION_ACTIVE = Color.parseColor("#00C896")
+    }
+}

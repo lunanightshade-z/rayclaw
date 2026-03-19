@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "com.rayclaw.app"
+    namespace = "com.openclaw.app"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -20,15 +20,15 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file(localProps.getProperty("KEYSTORE_FILE", "rayclaw-release.keystore"))
+            storeFile = rootProject.file(localProps.getProperty("KEYSTORE_FILE", "openclaw-release.keystore"))
             storePassword = localProps.getProperty("KEYSTORE_PASSWORD", "")
-            keyAlias = localProps.getProperty("KEY_ALIAS", "rayclaw")
+            keyAlias = localProps.getProperty("KEY_ALIAS", "openclaw")
             keyPassword = localProps.getProperty("KEY_PASSWORD", "")
         }
     }
 
     defaultConfig {
-        applicationId = "com.rayclaw.app"
+        applicationId = "com.openclaw.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

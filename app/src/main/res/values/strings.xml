@@ -1,4 +1,4 @@
 <resources>
     <!-- ★ 统一配置：改这里即可更新所有 Launcher/About 显示名称 -->
-    <string name="app_name">rayclaw</string>
+    <string name="app_name">OpenClaw</string>
 </resources>
